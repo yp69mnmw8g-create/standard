@@ -8,6 +8,7 @@
   --accent: #c8a24a;
   --accent-soft: #8a6d2a;
   --ok: #6f9a52;
+  --danger: #b5543f;
   --radius: 8px;
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
   color-scheme: dark;
@@ -150,6 +151,7 @@ button:hover { border-color: var(--accent-soft); }
 .tag--accent { color: var(--accent); border-color: var(--accent-soft); }
 .tag--ok { color: var(--ok); border-color: var(--ok); }
 .tag--open { color: var(--accent); border-color: var(--accent-soft); }
+.tag--warn { color: var(--danger); border-color: var(--danger); }
 
 .tag-row { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.5rem 0; }
 
