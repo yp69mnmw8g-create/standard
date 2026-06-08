@@ -12,6 +12,7 @@
   const QUESTS = window.KCD2_QUESTS || [];
   const LOCATIONS = window.KCD2_LOCATIONS || [];
   const CHECKLIST = window.KCD2_CHECKLIST || {};
+  const PERKS = window.KCD2_PERKS || [];
   const QUEST_BY_ID = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
 
   // Story rules (see data/quests.js)
@@ -36,9 +37,10 @@
         level: Number(parsed.level) || 1,
         completed: new Set(Array.isArray(parsed.completed) ? parsed.completed : []),
         checklist: new Set(Array.isArray(parsed.checklist) ? parsed.checklist : []),
+        perks: new Set(Array.isArray(parsed.perks) ? parsed.perks : []),
       };
     } catch {
-      return { level: 1, completed: new Set(), checklist: new Set() };
+      return { level: 1, completed: new Set(), checklist: new Set(), perks: new Set() };
     }
   }
 
@@ -51,6 +53,7 @@
         level: state.level,
         completed: [...state.completed],
         checklist: [...state.checklist],
+        perks: [...state.perks],
       })
     );
   }
@@ -64,6 +67,12 @@
   function toggleChecklist(id) {
     if (state.checklist.has(id)) state.checklist.delete(id);
     else state.checklist.add(id);
+    saveState();
+  }
+
+  function togglePerk(id) {
+    if (state.perks.has(id)) state.perks.delete(id);
+    else state.perks.add(id);
     saveState();
   }
 
@@ -594,12 +603,89 @@
   }
 
   // ===========================================================
+  //  Section 5: Perks (recommended per category)
+  // ===========================================================
+  const perksFilter = { category: "" };
+  const perkId = (cat, name) => "perk:" + cat + ":" + name;
+
+  function renderPerks() {
+    const cats = perksFilter.category
+      ? PERKS.filter((c) => c.category === perksFilter.category)
+      : PERKS;
+
+    const totalAll = PERKS.reduce((n, c) => n + c.perks.length, 0);
+    const totalGot = PERKS.reduce(
+      (n, c) => n + c.perks.filter((p) => state.perks.has(perkId(c.category, p.name))).length,
+      0
+    );
+
+    const sections = cats.map((c) => {
+      const got = c.perks.filter((p) => state.perks.has(perkId(c.category, p.name))).length;
+      const list = h("div", { class: "list" });
+      c.perks.forEach((p) => {
+        const id = perkId(c.category, p.name);
+        const done = state.perks.has(id);
+        const cb = h("input", { type: "checkbox" });
+        cb.checked = done;
+        cb.addEventListener("change", () => {
+          togglePerk(id);
+          render();
+        });
+        list.appendChild(
+          h(
+            "label",
+            { class: "card checkbox-row", style: "align-items:flex-start" },
+            cb,
+            h(
+              "span",
+              null,
+              h("strong", { style: done ? "text-decoration:line-through;opacity:0.6" : "" }, p.name),
+              p.note ? h("span", { class: "muted", style: "display:block;margin-top:0.2rem" }, p.note) : null
+            )
+          )
+        );
+      });
+      return h(
+        "div",
+        { style: "margin-bottom:1.25rem" },
+        h("h3", null, c.category + " (" + got + "/" + c.perks.length + ")"),
+        list
+      );
+    });
+
+    const catSelect = h("select", { id: "perk-cat", onchange: (e) => { perksFilter.category = e.target.value; render(); } });
+    catSelect.appendChild(h("option", { value: "" }, "All categories"));
+    PERKS.forEach((c) => {
+      const o = h("option", { value: c.category }, c.category);
+      if (c.category === perksFilter.category) o.selected = true;
+      catSelect.appendChild(o);
+    });
+
+    return h(
+      "div",
+      null,
+      pageHeader(
+        "🌟 Perks",
+        "Recommended perks to grab per category (a curated guide). Tick the ones you've taken — stored locally."
+      ),
+      h(
+        "div",
+        { class: "toolbar" },
+        h("div", { class: "field" }, h("label", { for: "perk-cat" }, "Category"), catSelect),
+        h("div", { class: "field" }, h("label", null, "Picked"), h("div", { class: "muted", style: "padding:0.5rem 0" }, totalGot + " / " + totalAll))
+      ),
+      sections
+    );
+  }
+
+  // ===========================================================
   //  Navigation + router
   // ===========================================================
   const SECTIONS = [
     { id: "quests", label: "Quests", icon: "📜", render: renderQuests },
     { id: "next", label: "What to do next", icon: "🎯", render: renderRecommendations },
     { id: "checklist", label: "Checklist", icon: "✅", render: renderChecklist },
+    { id: "perks", label: "Perks", icon: "🌟", render: renderPerks },
     { id: "map", label: "Map", icon: "🗺️", render: renderMap },
   ];
 

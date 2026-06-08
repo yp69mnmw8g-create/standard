@@ -23,6 +23,8 @@ Your progress (level + completed quests) is stored in the browser's
 - **Checklist** – "before the point of no return" per region: still-open side
   quests are pulled in automatically, plus a curated list of **missable tasks**
   and item/activity reminders. Everything is checkable.
+- **Perks** – a curated "which perks to grab" overview per category (skill).
+  Tick the ones you've taken; progress is stored locally.
 - **Map** – pick a region or a quest to see merchants and landmarks in that region.
 
 ### How the recommendations work
@@ -79,7 +81,8 @@ app.js            logic: nav, filters, recommendations, map, storage
 data/
 ├── quests.js     all main + side quests (with quest givers)
 ├── locations.js  merchants & landmarks
-└── checklist.js  per-region "before the point of no return" extras
+├── checklist.js  per-region "before the point of no return" extras
+└── perks.js      recommended perks per category
 ```
 
 ## Data accuracy & sources
