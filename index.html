@@ -4,9 +4,30 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KCD2 Companion</title>
+    <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
+    <header class="app__header">
+      <div class="app__brand">
+        <span class="app__brand-icon">⚔️</span>
+        <div>
+          <h1 class="app__title">KCD2 Companion</h1>
+          <p class="app__subtitle">Kingdom Come: Deliverance 2 — Begleiter</p>
+        </div>
+      </div>
+      <nav class="app__nav" id="nav"><!-- Buttons werden per JS erzeugt --></nav>
+    </header>
+
+    <main class="app__main" id="view"><!-- Inhalt wird per JS gerendert --></main>
+
+    <footer class="app__footer">
+      Lokale Website · Daten editierbar unter <code>data/</code> · Dummy-Daten (Platzhalter)
+    </footer>
+
+    <!-- Daten zuerst laden (setzen window.KCD2_*), dann die App -->
+    <script src="data/recipes.js"></script>
+    <script src="data/quests.js"></script>
+    <script src="data/locations.js"></script>
+    <script src="app.js"></script>
   </body>
 </html>
