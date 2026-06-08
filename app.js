@@ -1,8 +1,8 @@
 /*
   KCD2 Companion — static website (vanilla JS, no framework, no build).
     - Data comes from data/*.js (window.KCD2_QUESTS / KCD2_LOCATIONS)
-    - State (level + completed quests) is stored in localStorage
-    - Three sections, switched via the nav (URL hash)
+    - State (level + completed quests + checklist) is stored in localStorage
+    - Sections are switched via the nav (URL hash)
   Add a section: write a render function + add an entry to SECTIONS.
 */
 (function () {
@@ -11,6 +11,7 @@
   // ---- Data ----
   const QUESTS = window.KCD2_QUESTS || [];
   const LOCATIONS = window.KCD2_LOCATIONS || [];
+  const CHECKLIST = window.KCD2_CHECKLIST || {};
   const QUEST_BY_ID = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
 
   // Story rules (see data/quests.js)
@@ -34,9 +35,10 @@
       return {
         level: Number(parsed.level) || 1,
         completed: new Set(Array.isArray(parsed.completed) ? parsed.completed : []),
+        checklist: new Set(Array.isArray(parsed.checklist) ? parsed.checklist : []),
       };
     } catch {
-      return { level: 1, completed: new Set() };
+      return { level: 1, completed: new Set(), checklist: new Set() };
     }
   }
 
@@ -45,13 +47,23 @@
   function saveState() {
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ level: state.level, completed: [...state.completed] })
+      JSON.stringify({
+        level: state.level,
+        completed: [...state.completed],
+        checklist: [...state.checklist],
+      })
     );
   }
 
   function toggleCompleted(id) {
     if (state.completed.has(id)) state.completed.delete(id);
     else state.completed.add(id);
+    saveState();
+  }
+
+  function toggleChecklist(id) {
+    if (state.checklist.has(id)) state.checklist.delete(id);
+    else state.checklist.add(id);
     saveState();
   }
 
@@ -116,13 +128,42 @@
   // ===========================================================
   //  Section 1: Quests (browse)
   // ===========================================================
-  const questsFilter = { region: "", status: "", type: "" };
+  const questsFilter = { region: "", status: "", type: "", selectedId: null };
 
-  function questCard(qst) {
+  // Compact, clickable list entry.
+  function questListItem(qst, selected) {
     const done = state.completed.has(qst.id);
-    const missing = prereqNames(qst).filter(
-      (_, i) => !state.completed.has(qst.prerequisites[i])
+    return h(
+      "button",
+      {
+        class: "card clickable" + (selected ? " card--selected" : ""),
+        onclick: () => {
+          questsFilter.selectedId = qst.id;
+          render();
+        },
+      },
+      h(
+        "div",
+        { class: "row-between" },
+        h("strong", null, qst.name),
+        h("span", { class: "tag " + (done ? "tag--ok" : "tag--open") }, done ? "Done" : "Open")
+      ),
+      h(
+        "div",
+        { class: "tag-row", style: "margin:0.35rem 0 0" },
+        h("span", { class: "tag tag--accent" }, qst.type === "main" ? "Main" : "Side"),
+        h("span", { class: "tag" }, "📍 " + qst.region),
+        qst.storyOrder ? h("span", { class: "tag" }, "#" + qst.storyOrder) : null,
+        qst.missable ? h("span", { class: "tag tag--warn" }, "Missable") : null
+      )
     );
+  }
+
+  // Full detail panel for one quest.
+  function questDetail(qst) {
+    if (!qst) return h("div", { class: "card empty" }, "Select a quest to see its details.");
+    const done = state.completed.has(qst.id);
+    const missing = prereqNames(qst).filter((_, i) => !state.completed.has(qst.prerequisites[i]));
 
     const checkbox = h("input", { type: "checkbox" });
     checkbox.checked = done;
@@ -131,32 +172,34 @@
       render();
     });
 
+    const infoRow = (label, value) =>
+      value ? h("p", { style: "margin:0.2rem 0" }, h("span", { class: "muted" }, label + ": "), value) : null;
+
     return h(
       "div",
-      { class: "card" },
+      { class: "card detail" },
       h(
         "div",
         { class: "row-between" },
         h("h3", { style: "margin:0" }, qst.name),
         h("span", { class: "tag " + (done ? "tag--ok" : "tag--open") }, done ? "Done" : "Open")
       ),
-      h("p", { style: "margin:0.4rem 0" }, qst.description || ""),
       h(
         "div",
         { class: "tag-row" },
         h("span", { class: "tag tag--accent" }, qst.type === "main" ? "Main quest" : "Side quest"),
         h("span", { class: "tag" }, "📍 " + qst.region),
         qst.storyOrder ? h("span", { class: "tag" }, "Story #" + qst.storyOrder) : null,
-        qst.missable ? h("span", { class: "tag tag--warn" }, "Missable") : null,
-        qst.prerequisites.length
-          ? h("span", { class: "tag" }, "Requires: " + prereqNames(qst).join(", "))
-          : null
+        qst.missable ? h("span", { class: "tag tag--warn" }, "Missable") : null
       ),
-      qst.note ? h("p", { class: "muted", style: "margin:0.2rem 0 0" }, "⚠️ " + qst.note) : null,
+      infoRow("Quest giver", qst.giver),
+      infoRow("What to do", qst.description),
+      qst.prerequisites.length ? infoRow("Requires", prereqNames(qst).join(", ")) : null,
       missing.length
-        ? h("p", { class: "muted", style: "margin:0.2rem 0 0" }, "Still locked: " + missing.join(", "))
+        ? h("p", { class: "muted", style: "margin:0.2rem 0 0" }, "🔒 Still locked until you finish: " + missing.join(", "))
         : null,
-      h("label", { class: "checkbox-row", style: "margin-top:0.5rem" }, checkbox, "Mark as done")
+      qst.note ? h("p", { style: "margin:0.4rem 0 0;color:var(--danger)" }, "⚠️ " + qst.note) : null,
+      h("label", { class: "checkbox-row", style: "margin-top:0.8rem" }, checkbox, "Mark as done")
     );
   }
 
@@ -177,9 +220,12 @@
       return a.name.localeCompare(b.name, "en");
     });
 
+    // Resolve the selected quest (must still be in the filtered set).
+    let selected = filtered.find((q) => q.id === questsFilter.selectedId) || null;
+
     const list = h("div", { class: "list" });
     if (filtered.length === 0) list.appendChild(h("div", { class: "empty" }, "No quests match these filters."));
-    filtered.forEach((qst) => list.appendChild(questCard(qst)));
+    filtered.forEach((qst) => list.appendChild(questListItem(qst, selected && qst.id === selected.id)));
 
     const doneCount = QUESTS.filter((q) => state.completed.has(q.id)).length;
 
@@ -188,7 +234,7 @@
       null,
       pageHeader(
         "📜 Quests",
-        "All main and side quests. Status (open/done) is stored locally. Filter by region, type and status."
+        "All main and side quests. Click a quest for details (giver, what to do). Status is stored locally."
       ),
       h(
         "div",
@@ -219,7 +265,7 @@
         ),
         h("div", { class: "field" }, h("label", null, "Progress"), h("div", { class: "muted", style: "padding:0.5rem 0" }, doneCount + " / " + QUESTS.length + " done"))
       ),
-      list
+      h("div", { class: "split" }, list, questDetail(selected))
     );
   }
 
@@ -421,11 +467,139 @@
   }
 
   // ===========================================================
+  //  Section 4: Checklist (before the point of no return)
+  // ===========================================================
+  const CHECKLIST_ICON = { Task: "📌", Item: "🎒", Activity: "🏃" };
+  // Default to Trosky (the starting region) when present.
+  const checklistState = { region: ALL_REGIONS.includes("Trosky") ? "Trosky" : ALL_REGIONS[0] || "" };
+
+  function checklistRow(opts) {
+    // opts: { id, done, onToggle, label, tags:[{text,cls}], note, missable }
+    const cb = h("input", { type: "checkbox" });
+    cb.checked = opts.done;
+    cb.addEventListener("change", () => {
+      opts.onToggle();
+      render();
+    });
+    return h(
+      "label",
+      { class: "card checkbox-row", style: "align-items:flex-start" },
+      cb,
+      h(
+        "span",
+        null,
+        h("strong", { style: opts.done ? "text-decoration:line-through;opacity:0.6" : "" }, opts.label),
+        h(
+          "span",
+          { class: "tag-row", style: "margin:0.3rem 0 0" },
+          (opts.tags || []).map((t) => h("span", { class: "tag " + (t.cls || "") }, t.text))
+        ),
+        opts.note ? h("span", { class: "muted", style: "display:block;margin-top:0.2rem" }, opts.note) : null
+      )
+    );
+  }
+
+  function renderChecklist() {
+    const region = checklistState.region;
+    const cfg = CHECKLIST[region];
+
+    // Auto-pulled: still-open side quests of this region.
+    const openSide = QUESTS.filter(
+      (q) => q.type === "side" && q.region === region && !state.completed.has(q.id)
+    ).sort((a, b) => {
+      if (!!a.missable !== !!b.missable) return a.missable ? -1 : 1;
+      return a.name.localeCompare(b.name, "en");
+    });
+
+    const sideList = h("div", { class: "list" });
+    if (openSide.length === 0) sideList.appendChild(h("div", { class: "empty" }, "All side quests in this region are done. 🎉"));
+    openSide.forEach((q) =>
+      sideList.appendChild(
+        checklistRow({
+          id: q.id,
+          done: state.completed.has(q.id),
+          onToggle: () => toggleCompleted(q.id),
+          label: q.name,
+          tags: [
+            q.giver ? { text: "📍 " + q.giver } : null,
+            q.missable ? { text: "Missable", cls: "tag--warn" } : null,
+          ].filter(Boolean),
+          note: q.note || "",
+        })
+      )
+    );
+
+    // Manual entries (tasks / items / activities) from data/checklist.js.
+    const extras = (cfg && cfg.items) || [];
+    const extrasSorted = [...extras].sort((a, b) => {
+      if (!!a.missable !== !!b.missable) return a.missable ? -1 : 1;
+      return 0;
+    });
+    const extrasList = h("div", { class: "list" });
+    if (extrasSorted.length === 0) extrasList.appendChild(h("div", { class: "empty" }, "No extra items for this region yet."));
+    extrasSorted.forEach((it) =>
+      extrasList.appendChild(
+        checklistRow({
+          id: it.id,
+          done: state.checklist.has(it.id),
+          onToggle: () => toggleChecklist(it.id),
+          label: it.label,
+          tags: [
+            { text: (CHECKLIST_ICON[it.category] || "•") + " " + it.category },
+            it.location ? { text: "📍 " + it.location } : null,
+            it.missable ? { text: "Missable", cls: "tag--warn" } : null,
+          ].filter(Boolean),
+          note: it.note || "",
+        })
+      )
+    );
+
+    const ponrDone = cfg && state.completed.has(cfg.ponrQuestId);
+
+    return h(
+      "div",
+      null,
+      pageHeader(
+        "✅ Before the point of no return",
+        "Things worth finishing before the region locks. Open side quests are pulled in automatically; extras are curated."
+      ),
+      h(
+        "div",
+        { class: "toolbar" },
+        (function () {
+          const sel = h("select", { id: "ck-region", onchange: (e) => { checklistState.region = e.target.value; render(); } });
+          ALL_REGIONS.forEach((r) => {
+            const o = h("option", { value: r }, r);
+            if (r === region) o.selected = true;
+            sel.appendChild(o);
+          });
+          return h("div", { class: "field" }, h("label", { for: "ck-region" }, "Region"), sel);
+        })()
+      ),
+      cfg
+        ? h(
+            "div",
+            { class: "card", style: "margin-bottom:1rem" + (ponrDone ? ";border-color:var(--danger)" : "") },
+            h("strong", null, ponrDone ? "⚠️ You have already started/passed " : "Point of no return: "),
+            h("span", { class: ponrDone ? "" : "tag tag--warn" }, cfg.ponrName),
+            cfg.intro ? h("p", { style: "margin:0.5rem 0 0" }, cfg.intro) : null,
+            (cfg.notes || []).map((n) => h("p", { class: "muted", style: "margin:0.4rem 0 0" }, "ℹ️ " + n))
+          )
+        : null,
+      h("h3", null, "Open side quests (" + openSide.length + ")"),
+      sideList,
+      h("h3", { style: "margin-top:1.25rem" }, "Tasks & extras"),
+      extrasList
+    );
+  }
+
+  // ===========================================================
   //  Navigation + router
   // ===========================================================
   const SECTIONS = [
     { id: "quests", label: "Quests", icon: "📜", render: renderQuests },
     { id: "next", label: "What to do next", icon: "🎯", render: renderRecommendations },
+    { id: "checklist", label: "Checklist", icon: "✅", render: renderChecklist },
     { id: "map", label: "Map", icon: "🗺️", render: renderMap },
   ];
 

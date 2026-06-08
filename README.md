@@ -15,11 +15,14 @@ Your progress (level + completed quests) is stored in the browser's
 
 ## Features
 
-- **Quests** – all main and side quests with name, description, region, type,
-  story order, prerequisites and missable flags. Filter by region, type and status.
-  Mark quests done (stored locally).
+- **Quests** – all main and side quests. Click a quest for a **detail panel**
+  (quest giver, what to do, region, prerequisites, missable/notes). Filter by
+  region, type and status; mark quests done (stored locally).
 - **What to do next** – story-aware recommendations: the next main quest, plus
   the side quests available right now, with **point-of-no-return** warnings.
+- **Checklist** – "before the point of no return" per region: still-open side
+  quests are pulled in automatically, plus a curated list of **missable tasks**
+  and item/activity reminders. Everything is checkable.
 - **Map** – pick a region or a quest to see merchants and landmarks in that region.
 
 ### How the recommendations work
@@ -74,8 +77,9 @@ index.html        page shell (loads data + app.js)
 styles.css        styling
 app.js            logic: nav, filters, recommendations, map, storage
 data/
-├── quests.js     all main + side quests
-└── locations.js  merchants & landmarks
+├── quests.js     all main + side quests (with quest givers)
+├── locations.js  merchants & landmarks
+└── checklist.js  per-region "before the point of no return" extras
 ```
 
 ## Data accuracy & sources
