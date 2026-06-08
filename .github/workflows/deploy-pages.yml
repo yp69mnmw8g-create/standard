@@ -1,0 +1,54 @@
+name: Deploy to GitHub Pages
+
+# Veröffentlicht die statische Website (Wurzelverzeichnis) auf GitHub Pages.
+# Läuft bei jedem Push auf den unten genannten Branch sowie manuell.
+
+on:
+  push:
+    branches:
+      - claude/magical-cannon-y7pnkl
+      - main
+  workflow_dispatch:
+
+# Rechte, die der Deploy benötigt.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Es soll immer nur ein Deploy gleichzeitig laufen.
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+        with:
+          # Aktiviert GitHub Pages automatisch (Quelle: GitHub Actions),
+          # falls es noch nicht eingeschaltet ist.
+          enablement: true
+
+      - name: Stage site files
+        # Nur die eigentlichen Seiten-Dateien veröffentlichen (kein .git/.github).
+        run: |
+          mkdir -p _site
+          cp -r index.html styles.css app.js data .nojekyll _site/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
