@@ -240,6 +240,36 @@ async function getHistory(cfg, today) {
 }
 
 // ---------------------------------------------------------------------------
+// 3b) Wissen des Tages – Wikipedia "Artikel des Tages" (fürs Allgemeinwissen)
+// ---------------------------------------------------------------------------
+async function getKnowledge(cfg, today) {
+  try {
+    const mm = String(today.m).padStart(2, "0");
+    const dd = String(today.d).padStart(2, "0");
+    const lang = cfg.locale === "de" ? "de" : "en";
+    const data = await httpGet(
+      `https://${lang}.wikipedia.org/api/rest_v1/feed/featured/${today.y}/${mm}/${dd}`,
+      { json: true }
+    );
+    // Bevorzugt der "Artikel des Tages", sonst der meistgelesene Artikel.
+    let a = data.tfa;
+    if (!a && data.mostread?.articles?.length) a = data.mostread.articles[0];
+    if (!a) throw new Error("kein Artikel");
+    let extract = a.extract || "";
+    if (extract.length > 320) extract = extract.slice(0, 320).trimEnd() + "…";
+    return {
+      ok: true,
+      title: a.normalizedtitle || a.titles?.normalized || "",
+      extract,
+      url: a.content_urls?.desktop?.page || "",
+      thumb: a.thumbnail?.source || "",
+    };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 4) Koran-Vers des Tages (alquran.cloud) – wechselt täglich, deterministisch
 // ---------------------------------------------------------------------------
 const QURAN_AYAH_COUNT = 6236;
@@ -430,7 +460,7 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
-function renderHTML({ cfg, dateLabel, weather, calendar, news, history, quran }) {
+function renderHTML({ cfg, dateLabel, weather, calendar, news, history, knowledge, quran }) {
   const weatherCard = weather.ok
     ? `<div class="big">${weather.icon} ${weather.tMax}°<span class="muted"> / ${weather.tMin}°</span></div>
        <div>${esc(weather.desc)} · ${esc(weather.city)}</div>
@@ -464,6 +494,13 @@ function renderHTML({ cfg, dateLabel, weather, calendar, news, history, quran })
        ${history.extract ? `<div class="muted hist-extract">${esc(history.extract)}</div>` : ""}
        ${history.url ? `<a href="${esc(history.url)}">Mehr dazu →</a>` : ""}`
     : `<div class="muted">Geschichtsthema nicht verfügbar${history.error ? ` (${esc(history.error)})` : ""}.</div>`;
+
+  const knowledgeCard = knowledge.ok
+    ? `${knowledge.thumb ? `<img class="hist-img" src="${esc(knowledge.thumb)}" alt="">` : ""}
+       <div><strong>${esc(knowledge.title)}</strong></div>
+       ${knowledge.extract ? `<div class="muted hist-extract">${esc(knowledge.extract)}</div>` : ""}
+       ${knowledge.url ? `<a href="${esc(knowledge.url)}">Mehr dazu →</a>` : ""}`
+    : `<div class="muted">Wissen nicht verfügbar${knowledge.error ? ` (${esc(knowledge.error)})` : ""}.</div>`;
 
   const quranCard = quran.ok
     ? `<div class="ayah" lang="ar" dir="rtl">${esc(quran.arabic)}</div>
@@ -528,6 +565,7 @@ function renderHTML({ cfg, dateLabel, weather, calendar, news, history, quran })
   <section class="card"><h2>📅 Heute im Kalender</h2>${calCard}</section>
   <section class="card"><h2>🌍 ${esc(news.source || "Welt-Nachrichten")}</h2>${newsCard}</section>
   <section class="card"><h2>📜 Geschichtsthema des Tages</h2>${historyCard}</section>
+  <section class="card"><h2>🧠 Wissen des Tages</h2>${knowledgeCard}</section>
   <section class="card quran"><h2>☪️ Koran-Vers des Tages</h2>${quranCard}</section>
 
   <footer>Automatisch erstellt · ${esc(new Date().toISOString().slice(0, 16).replace("T", " "))} UTC</footer>
@@ -549,16 +587,17 @@ async function main() {
     year: "numeric",
   }).format(new Date());
 
-  const [weather, calendar, news, history, quran] = await Promise.all([
+  const [weather, calendar, news, history, knowledge, quran] = await Promise.all([
     getWeather(cfg),
     getCalendar(cfg, today),
     getNews(cfg),
     getHistory(cfg, today),
+    getKnowledge(cfg, today),
     getQuran(cfg, today),
   ]);
 
   const html = renderHTML({
-    cfg, dateLabel, weather, calendar, news, history, quran,
+    cfg, dateLabel, weather, calendar, news, history, knowledge, quran,
   });
   await writeFile(join(HERE, "index.html"), html, "utf8");
 
@@ -571,6 +610,7 @@ async function main() {
   }
   console.log(`  News:         ${news.ok ? news.news.length + " Meldungen" : "FEHLER: " + news.error}`);
   console.log(`  Geschichte:   ${history.ok ? `${history.year} – ${history.title || history.text.slice(0, 40)}` : "FEHLER: " + history.error}`);
+  console.log(`  Wissen:       ${knowledge.ok ? knowledge.title : "FEHLER: " + knowledge.error}`);
   console.log(`  Koran-Vers:   ${quran.ok ? quran.ref : "FEHLER: " + quran.error}`);
 }
 
