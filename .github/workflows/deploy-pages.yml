@@ -38,6 +38,19 @@ jobs:
           # falls es noch nicht eingeschaltet ist.
           enablement: true
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Morgen-Übersicht (neu) erzeugen
+        # Damit die Morgen-Seite auch bei normalen Deploys frisch ist und nicht
+        # vom Platzhalter überschrieben wird.
+        env:
+          CALENDAR_URLS: ${{ secrets.CALENDAR_URLS }}
+          WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
+        run: node morning/generate.js
+
       - name: Stage site files
         # Nur die eigentlichen Seiten-Dateien veröffentlichen (kein .git/.github).
         run: |
