@@ -475,6 +475,9 @@ async function main() {
   console.log(`Morgen-Übersicht für ${dateLabel} erstellt.`);
   console.log(`  Wetter:     ${weather.ok ? "ok" : "FEHLER: " + weather.error}`);
   console.log(`  Kalender:   ${calendar.configured ? calendar.events.length + " Termine" : "nicht konfiguriert"}`);
+  if (calendar.errors?.length) {
+    console.log(`              ⚠ Abruf-Fehler: ${calendar.errors.join("; ")}`);
+  }
   console.log(`  News:       ${news.ok ? news.news.length + " Meldungen" : "FEHLER: " + news.error}`);
   console.log(`  Ereignisse: ${otd.ok ? otd.events.length : "FEHLER: " + otd.error}`);
 }
