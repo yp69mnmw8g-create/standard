@@ -178,22 +178,62 @@ async function getNews(cfg) {
 }
 
 // ---------------------------------------------------------------------------
-// 3) "Was geschah heute" (Wikipedia)
+// 3) "Was heute ansteht" – Gedenk-/Feiertage & Anlässe heute (Wikipedia)
 // ---------------------------------------------------------------------------
-async function getOnThisDay(cfg, today) {
+async function getToday(cfg, today) {
   try {
     const mm = String(today.m).padStart(2, "0");
     const dd = String(today.d).padStart(2, "0");
     const lang = cfg.locale === "de" ? "de" : "en";
     const data = await httpGet(
-      `https://${lang}.wikipedia.org/api/rest_v1/feed/onthisday/events/${mm}/${dd}`,
+      `https://${lang}.wikipedia.org/api/rest_v1/feed/onthisday/holidays/${mm}/${dd}`,
       { json: true }
     );
-    const events = (data.events || [])
-      .sort((a, b) => (b.year || 0) - (a.year || 0))
-      .slice(0, cfg.eventsCount || 5)
-      .map((e) => ({ year: e.year, text: e.text }));
-    return { ok: true, events };
+    const items = (data.holidays || [])
+      .map((e) => {
+        // Text ist oft "Kategorie:\nBezeichnung" – Kategorie-Präfix entfernen.
+        const parts = (e.text || "").split("\n");
+        return (parts.length > 1 ? parts.slice(1).join(" ") : parts[0]).trim();
+      })
+      .filter(Boolean)
+      .slice(0, cfg.todayCount || 6);
+    return { ok: true, items };
+  } catch (e) {
+    return { ok: false, error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// 4) Koran-Vers des Tages (alquran.cloud) – wechselt täglich, deterministisch
+// ---------------------------------------------------------------------------
+const QURAN_AYAH_COUNT = 6236;
+
+function ayahOfDay(today) {
+  // Tage seit Epoche → modulo Gesamtzahl der Verse: jeden Tag ein anderer,
+  // aber über den Tag stabil und reproduzierbar.
+  const epochDays = Math.floor(
+    Date.UTC(today.y, today.m - 1, today.d) / 86400000
+  );
+  return ((epochDays % QURAN_AYAH_COUNT) + QURAN_AYAH_COUNT) % QURAN_AYAH_COUNT + 1;
+}
+
+async function getQuran(cfg, today) {
+  try {
+    const n = ayahOfDay(today);
+    const translation = cfg.quranTranslation || "de.aburida";
+    const data = await httpGet(
+      `https://api.alquran.cloud/v1/ayah/${n}/editions/quran-uthmani,${translation}`,
+      { json: true }
+    );
+    const ar = data.data.find((x) => x.edition.identifier === "quran-uthmani");
+    const tr = data.data.find((x) => x.edition.identifier === translation);
+    if (!ar || !tr) throw new Error("Vers-Daten unvollständig");
+    return {
+      ok: true,
+      arabic: ar.text,
+      translation: tr.text,
+      ref: `Sure ${tr.surah.number} (${tr.surah.englishName}), Vers ${tr.numberInSurah}`,
+    };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -357,7 +397,7 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
-function renderHTML({ cfg, dateLabel, weather, calendar, news, otd }) {
+function renderHTML({ cfg, dateLabel, weather, calendar, news, today, quran }) {
   const weatherCard = weather.ok
     ? `<div class="big">${weather.icon} ${weather.tMax}°<span class="muted"> / ${weather.tMin}°</span></div>
        <div>${esc(weather.desc)} · ${esc(weather.city)}</div>
@@ -385,12 +425,16 @@ function renderHTML({ cfg, dateLabel, weather, calendar, news, otd }) {
       ).join("") + `</ul>`
     : `<div class="muted">Nachrichten nicht verfügbar${news.error ? ` (${esc(news.error)})` : ""}.</div>`;
 
-  const otdCard = otd.ok && otd.events.length
+  const todayCard = today.ok && today.items.length
     ? `<ul class="list">` +
-      otd.events.map((e) =>
-        `<li><span class="time">${esc(e.year)}</span> ${esc(e.text)}</li>`
-      ).join("") + `</ul>`
-    : `<div class="muted">Keine Ereignisse verfügbar.</div>`;
+      today.items.map((t) => `<li>${esc(t)}</li>`).join("") + `</ul>`
+    : `<div class="muted">Heute sind keine besonderen Anlässe verzeichnet.</div>`;
+
+  const quranCard = quran.ok
+    ? `<div class="ayah" lang="ar" dir="rtl">${esc(quran.arabic)}</div>
+       <div class="ayah-tr">${esc(quran.translation)}</div>
+       <div class="muted ayah-ref">${esc(quran.ref)}</div>`
+    : `<div class="muted">Vers nicht verfügbar${quran.error ? ` (${esc(quran.error)})` : ""}.</div>`;
 
   return `<!doctype html>
 <html lang="de">
@@ -428,6 +472,11 @@ function renderHTML({ cfg, dateLabel, weather, calendar, news, otd }) {
   .time { display: inline-block; min-width: 64px; color: #86868b; font-variant-numeric: tabular-nums; }
   a { color: #0066cc; text-decoration: none; }
   a:hover { text-decoration: underline; }
+  .quran { background: linear-gradient(135deg, #f3efe6, #fbf9f4); }
+  @media (prefers-color-scheme: dark) { .quran { background: linear-gradient(135deg, #23211c, #1c1b18) !important; } }
+  .ayah { font-size: 1.5rem; line-height: 2; text-align: right; margin-bottom: 12px; }
+  .ayah-tr { font-style: italic; }
+  .ayah-ref { margin-top: 8px; font-size: .85rem; }
   footer { color: #86868b; font-size: .8rem; text-align: center; margin-top: 24px; }
 </style>
 </head>
@@ -439,8 +488,9 @@ function renderHTML({ cfg, dateLabel, weather, calendar, news, otd }) {
 
   <section class="card"><h2>Wetter</h2>${weatherCard}</section>
   <section class="card"><h2>📅 Heute im Kalender</h2>${calCard}</section>
-  <section class="card"><h2>📰 ${esc(news.source || "Nachrichten")}</h2>${newsCard}</section>
-  <section class="card"><h2>📜 Was geschah heute</h2>${otdCard}</section>
+  <section class="card"><h2>📌 Was heute ansteht</h2>${todayCard}</section>
+  <section class="card"><h2>🌍 ${esc(news.source || "Welt-Nachrichten")}</h2>${newsCard}</section>
+  <section class="card quran"><h2>☪️ Koran-Vers des Tages</h2>${quranCard}</section>
 
   <footer>Automatisch erstellt · ${esc(new Date().toISOString().slice(0, 16).replace("T", " "))} UTC</footer>
 </body>
@@ -461,25 +511,29 @@ async function main() {
     year: "numeric",
   }).format(new Date());
 
-  const [weather, calendar, news, otd] = await Promise.all([
+  const [weather, calendar, news, todayInfo, quran] = await Promise.all([
     getWeather(cfg),
     getCalendar(cfg, today),
     getNews(cfg),
-    getOnThisDay(cfg, today),
+    getToday(cfg, today),
+    getQuran(cfg, today),
   ]);
 
-  const html = renderHTML({ cfg, dateLabel, weather, calendar, news, otd });
+  const html = renderHTML({
+    cfg, dateLabel, weather, calendar, news, today: todayInfo, quran,
+  });
   await writeFile(join(HERE, "index.html"), html, "utf8");
 
   // Kurze Konsolen-Zusammenfassung (hilfreich im CI-Log).
   console.log(`Morgen-Übersicht für ${dateLabel} erstellt.`);
-  console.log(`  Wetter:     ${weather.ok ? "ok" : "FEHLER: " + weather.error}`);
-  console.log(`  Kalender:   ${calendar.configured ? calendar.events.length + " Termine" : "nicht konfiguriert"}`);
+  console.log(`  Wetter:       ${weather.ok ? "ok" : "FEHLER: " + weather.error}`);
+  console.log(`  Kalender:     ${calendar.configured ? calendar.events.length + " Termine" : "nicht konfiguriert"}`);
   if (calendar.errors?.length) {
-    console.log(`              ⚠ Abruf-Fehler: ${calendar.errors.join("; ")}`);
+    console.log(`                ⚠ Abruf-Fehler: ${calendar.errors.join("; ")}`);
   }
-  console.log(`  News:       ${news.ok ? news.news.length + " Meldungen" : "FEHLER: " + news.error}`);
-  console.log(`  Ereignisse: ${otd.ok ? otd.events.length : "FEHLER: " + otd.error}`);
+  console.log(`  News:         ${news.ok ? news.news.length + " Meldungen" : "FEHLER: " + news.error}`);
+  console.log(`  Heute:        ${todayInfo.ok ? todayInfo.items.length + " Anlässe" : "FEHLER: " + todayInfo.error}`);
+  console.log(`  Koran-Vers:   ${quran.ok ? quran.ref : "FEHLER: " + quran.error}`);
 }
 
 main().catch((e) => {

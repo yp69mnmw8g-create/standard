@@ -2,9 +2,10 @@
   "city": "Düsseldorf",
   "timezone": "Europe/Berlin",
   "locale": "de",
-  "newsRssUrl": "https://news.google.com/rss?hl=de&gl=DE&ceid=DE:de",
-  "newsSourceName": "Schlagzeilen",
+  "newsRssUrl": "https://de.euronews.com/rss?level=theme&name=news",
+  "newsSourceName": "Welt-Nachrichten",
   "newsCount": 6,
-  "eventsCount": 5,
+  "todayCount": 6,
+  "quranTranslation": "de.aburida",
   "calendarUrls": []
 }
