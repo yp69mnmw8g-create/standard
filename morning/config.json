@@ -2,10 +2,9 @@
   "city": "Düsseldorf",
   "timezone": "Europe/Berlin",
   "locale": "de",
-  "newsRssUrl": "https://de.euronews.com/rss?level=theme&name=news",
+  "newsRssUrl": "https://feeds.bbci.co.uk/news/world/rss.xml",
   "newsSourceName": "Welt-Nachrichten",
   "newsCount": 6,
-  "todayCount": 6,
   "quranTranslation": "de.aburida",
   "calendarUrls": []
 }

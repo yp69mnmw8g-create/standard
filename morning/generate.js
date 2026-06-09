@@ -37,9 +37,11 @@ async function loadConfig() {
 }
 
 // ---------------------------------------------------------------------------
-// HTTP-Helfer (mit User-Agent + Timeout, fängt Fehler ab)
+// HTTP-Helfer (User-Agent + Timeout + Retry bei kurzzeitigen Fehlern)
 // ---------------------------------------------------------------------------
-async function httpGet(url, { json = false, timeout = 15000 } = {}) {
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function httpGetOnce(url, { json, timeout }) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeout);
   try {
@@ -51,11 +53,34 @@ async function httpGet(url, { json = false, timeout = 15000 } = {}) {
         Accept: json ? "application/json" : "*/*",
       },
     });
-    if (!res.ok) throw new Error(`HTTP ${res.status} für ${url}`);
+    if (!res.ok) {
+      const err = new Error(`HTTP ${res.status} für ${url}`);
+      err.status = res.status;
+      throw err;
+    }
     return json ? await res.json() : await res.text();
   } finally {
     clearTimeout(t);
   }
+}
+
+async function httpGet(url, { json = false, timeout = 15000, retries = 2 } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      return await httpGetOnce(url, { json, timeout });
+    } catch (e) {
+      lastErr = e;
+      // Nur bei vorübergehenden Fehlern erneut versuchen (Rate-Limit/Server/Netz).
+      const transient =
+        e.status === undefined || // Netz-/Timeout-Fehler
+        e.status === 403 || e.status === 408 || e.status === 429 ||
+        (e.status >= 500 && e.status < 600);
+      if (attempt === retries || !transient) break;
+      await sleep(600 * (attempt + 1));
+    }
+  }
+  throw lastErr;
 }
 
 // ---------------------------------------------------------------------------
@@ -178,26 +203,37 @@ async function getNews(cfg) {
 }
 
 // ---------------------------------------------------------------------------
-// 3) "Was heute ansteht" – Gedenk-/Feiertage & Anlässe heute (Wikipedia)
+// 3) Geschichtsthema des Tages (Wikipedia, kuratierte Ereignisse)
 // ---------------------------------------------------------------------------
-async function getToday(cfg, today) {
+function epochDay(today) {
+  return Math.floor(Date.UTC(today.y, today.m - 1, today.d) / 86400000);
+}
+
+async function getHistory(cfg, today) {
   try {
     const mm = String(today.m).padStart(2, "0");
     const dd = String(today.d).padStart(2, "0");
     const lang = cfg.locale === "de" ? "de" : "en";
     const data = await httpGet(
-      `https://${lang}.wikipedia.org/api/rest_v1/feed/onthisday/holidays/${mm}/${dd}`,
+      `https://${lang}.wikipedia.org/api/rest_v1/feed/onthisday/selected/${mm}/${dd}`,
       { json: true }
     );
-    const items = (data.holidays || [])
-      .map((e) => {
-        // Text ist oft "Kategorie:\nBezeichnung" – Kategorie-Präfix entfernen.
-        const parts = (e.text || "").split("\n");
-        return (parts.length > 1 ? parts.slice(1).join(" ") : parts[0]).trim();
-      })
-      .filter(Boolean)
-      .slice(0, cfg.todayCount || 6);
-    return { ok: true, items };
+    const events = data.selected || [];
+    if (!events.length) throw new Error("keine Ereignisse");
+    // Pro Tag ein anderes Thema (über den Tag stabil).
+    const e = events[epochDay(today) % events.length];
+    const p = (e.pages || [])[0] || {};
+    let extract = p.extract || "";
+    if (extract.length > 320) extract = extract.slice(0, 320).trimEnd() + "…";
+    return {
+      ok: true,
+      year: e.year,
+      text: e.text,
+      title: p.normalizedtitle || "",
+      extract,
+      url: p.content_urls?.desktop?.page || "",
+      thumb: p.thumbnail?.source || "",
+    };
   } catch (e) {
     return { ok: false, error: e.message };
   }
@@ -211,10 +247,7 @@ const QURAN_AYAH_COUNT = 6236;
 function ayahOfDay(today) {
   // Tage seit Epoche → modulo Gesamtzahl der Verse: jeden Tag ein anderer,
   // aber über den Tag stabil und reproduzierbar.
-  const epochDays = Math.floor(
-    Date.UTC(today.y, today.m - 1, today.d) / 86400000
-  );
-  return ((epochDays % QURAN_AYAH_COUNT) + QURAN_AYAH_COUNT) % QURAN_AYAH_COUNT + 1;
+  return (((epochDay(today) % QURAN_AYAH_COUNT) + QURAN_AYAH_COUNT) % QURAN_AYAH_COUNT) + 1;
 }
 
 async function getQuran(cfg, today) {
@@ -397,7 +430,7 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
-function renderHTML({ cfg, dateLabel, weather, calendar, news, today, quran }) {
+function renderHTML({ cfg, dateLabel, weather, calendar, news, history, quran }) {
   const weatherCard = weather.ok
     ? `<div class="big">${weather.icon} ${weather.tMax}°<span class="muted"> / ${weather.tMin}°</span></div>
        <div>${esc(weather.desc)} · ${esc(weather.city)}</div>
@@ -425,10 +458,12 @@ function renderHTML({ cfg, dateLabel, weather, calendar, news, today, quran }) {
       ).join("") + `</ul>`
     : `<div class="muted">Nachrichten nicht verfügbar${news.error ? ` (${esc(news.error)})` : ""}.</div>`;
 
-  const todayCard = today.ok && today.items.length
-    ? `<ul class="list">` +
-      today.items.map((t) => `<li>${esc(t)}</li>`).join("") + `</ul>`
-    : `<div class="muted">Heute sind keine besonderen Anlässe verzeichnet.</div>`;
+  const historyCard = history.ok
+    ? `${history.thumb ? `<img class="hist-img" src="${esc(history.thumb)}" alt="">` : ""}
+       <div><strong>${esc(history.year)}</strong> — ${esc(history.text)}</div>
+       ${history.extract ? `<div class="muted hist-extract">${esc(history.extract)}</div>` : ""}
+       ${history.url ? `<a href="${esc(history.url)}">Mehr dazu →</a>` : ""}`
+    : `<div class="muted">Geschichtsthema nicht verfügbar${history.error ? ` (${esc(history.error)})` : ""}.</div>`;
 
   const quranCard = quran.ok
     ? `<div class="ayah" lang="ar" dir="rtl">${esc(quran.arabic)}</div>
@@ -477,6 +512,9 @@ function renderHTML({ cfg, dateLabel, weather, calendar, news, today, quran }) {
   .ayah { font-size: 1.5rem; line-height: 2; text-align: right; margin-bottom: 12px; }
   .ayah-tr { font-style: italic; }
   .ayah-ref { margin-top: 8px; font-size: .85rem; }
+  .hist-img { float: right; width: 120px; height: auto; border-radius: 10px;
+    margin: 0 0 8px 14px; object-fit: cover; }
+  .hist-extract { margin: 8px 0; font-size: .92rem; }
   footer { color: #86868b; font-size: .8rem; text-align: center; margin-top: 24px; }
 </style>
 </head>
@@ -488,8 +526,8 @@ function renderHTML({ cfg, dateLabel, weather, calendar, news, today, quran }) {
 
   <section class="card"><h2>Wetter</h2>${weatherCard}</section>
   <section class="card"><h2>📅 Heute im Kalender</h2>${calCard}</section>
-  <section class="card"><h2>📌 Was heute ansteht</h2>${todayCard}</section>
   <section class="card"><h2>🌍 ${esc(news.source || "Welt-Nachrichten")}</h2>${newsCard}</section>
+  <section class="card"><h2>📜 Geschichtsthema des Tages</h2>${historyCard}</section>
   <section class="card quran"><h2>☪️ Koran-Vers des Tages</h2>${quranCard}</section>
 
   <footer>Automatisch erstellt · ${esc(new Date().toISOString().slice(0, 16).replace("T", " "))} UTC</footer>
@@ -511,16 +549,16 @@ async function main() {
     year: "numeric",
   }).format(new Date());
 
-  const [weather, calendar, news, todayInfo, quran] = await Promise.all([
+  const [weather, calendar, news, history, quran] = await Promise.all([
     getWeather(cfg),
     getCalendar(cfg, today),
     getNews(cfg),
-    getToday(cfg, today),
+    getHistory(cfg, today),
     getQuran(cfg, today),
   ]);
 
   const html = renderHTML({
-    cfg, dateLabel, weather, calendar, news, today: todayInfo, quran,
+    cfg, dateLabel, weather, calendar, news, history, quran,
   });
   await writeFile(join(HERE, "index.html"), html, "utf8");
 
@@ -532,7 +570,7 @@ async function main() {
     console.log(`                ⚠ Abruf-Fehler: ${calendar.errors.join("; ")}`);
   }
   console.log(`  News:         ${news.ok ? news.news.length + " Meldungen" : "FEHLER: " + news.error}`);
-  console.log(`  Heute:        ${todayInfo.ok ? todayInfo.items.length + " Anlässe" : "FEHLER: " + todayInfo.error}`);
+  console.log(`  Geschichte:   ${history.ok ? `${history.year} – ${history.title || history.text.slice(0, 40)}` : "FEHLER: " + history.error}`);
   console.log(`  Koran-Vers:   ${quran.ok ? quran.ref : "FEHLER: " + quran.error}`);
 }
 
