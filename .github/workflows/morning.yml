@@ -1,0 +1,82 @@
+name: Morgen-Übersicht
+
+# Baut jeden Morgen die Tagesübersicht (Wetter, Kalender, Nachrichten,
+# Ereignisse), veröffentlicht sie auf GitHub Pages und schickt sie – falls
+# die E-Mail-Secrets gesetzt sind – per Mail.
+#
+# WICHTIG: Geplante (cron-)Läufe starten bei GitHub nur auf dem Default-Branch.
+# Bis dahin lässt sich der Workflow jederzeit manuell über "Run workflow"
+# (workflow_dispatch) auslösen.
+
+on:
+  schedule:
+    # 04:30 UTC = 06:30 Sommerzeit / 05:30 Winterzeit (Europe/Berlin).
+    - cron: "30 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build-and-send:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Tagesübersicht erzeugen
+        env:
+          # Veröffentlichte Kalender-Links (kommagetrennt) und optional die Stadt
+          # kommen aus Repository-Secrets, damit sie nicht im Code stehen.
+          CALENDAR_URLS: ${{ secrets.CALENDAR_URLS }}
+          WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
+        run: node morning/generate.js
+
+      - name: Datum für Betreff
+        id: meta
+        run: echo "date=$(TZ=Europe/Berlin date '+%d.%m.%Y')" >> "$GITHUB_OUTPUT"
+
+      - name: Seiten-Dateien bereitstellen
+        run: |
+          mkdir -p _site
+          cp -r index.html styles.css app.js data .nojekyll morning _site/
+
+      - name: Artefakt hochladen
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - name: Auf GitHub Pages veröffentlichen
+        id: deployment
+        uses: actions/deploy-pages@v4
+
+      - name: Per E-Mail verschicken
+        # Läuft nur, wenn ein Mail-Passwort als Secret hinterlegt ist.
+        env:
+          MAIL_PASSWORD: ${{ secrets.MAIL_PASSWORD }}
+        if: ${{ env.MAIL_PASSWORD != '' }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.mail.me.com
+          server_port: 587
+          secure: false
+          username: ${{ secrets.MAIL_USERNAME }}
+          password: ${{ secrets.MAIL_PASSWORD }}
+          subject: "☀️ Deine Morgen-Übersicht – ${{ steps.meta.outputs.date }}"
+          to: ${{ secrets.MAIL_TO }}
+          from: Morgen-Übersicht <${{ secrets.MAIL_USERNAME }}>
+          html_body: file://morning/index.html

@@ -1,0 +1,10 @@
+{
+  "city": "Berlin",
+  "timezone": "Europe/Berlin",
+  "locale": "de",
+  "newsRssUrl": "https://news.google.com/rss?hl=de&gl=DE&ceid=DE:de",
+  "newsSourceName": "Schlagzeilen",
+  "newsCount": 6,
+  "eventsCount": 5,
+  "calendarUrls": []
+}

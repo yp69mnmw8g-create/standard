@@ -42,7 +42,7 @@ jobs:
         # Nur die eigentlichen Seiten-Dateien veröffentlichen (kein .git/.github).
         run: |
           mkdir -p _site
-          cp -r index.html styles.css app.js data .nojekyll _site/
+          cp -r index.html styles.css app.js data .nojekyll morning _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
