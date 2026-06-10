@@ -29,6 +29,8 @@ Your progress (level + completed quests) is stored in the browser's
   item/activity reminders. Everything is checkable.
 - **Perks** – a curated "which perks to grab" overview per category (skill).
   Tick the ones you've taken; progress is stored locally.
+- **Gear** – best armor (early/late), weapons, horses and horse gear with
+  where to get them (DLC items marked). Tick what you've obtained.
 - **Map** – pick a region or a quest to see merchants and landmarks in that region.
 
 ### How the recommendations work
@@ -86,7 +88,8 @@ data/
 ├── quests.js     all main + side quests (with quest givers)
 ├── locations.js  merchants & landmarks
 ├── checklist.js  per-region "before the point of no return" extras
-└── perks.js      recommended perks per category
+├── perks.js      recommended perks per category
+└── gear.js       best armor/weapons/horses with locations
 ```
 
 ## Data accuracy & sources

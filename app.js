@@ -13,6 +13,7 @@
   const LOCATIONS = window.KCD2_LOCATIONS || [];
   const CHECKLIST = window.KCD2_CHECKLIST || {};
   const PERKS = window.KCD2_PERKS || [];
+  const GEAR = window.KCD2_GEAR || [];
   const QUEST_BY_ID = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
 
   // Story rules (see data/quests.js)
@@ -38,10 +39,11 @@
         completed: new Set(Array.isArray(parsed.completed) ? parsed.completed : []),
         checklist: new Set(Array.isArray(parsed.checklist) ? parsed.checklist : []),
         perks: new Set(Array.isArray(parsed.perks) ? parsed.perks : []),
+        gear: new Set(Array.isArray(parsed.gear) ? parsed.gear : []),
         notes: parsed.notes && typeof parsed.notes === "object" ? parsed.notes : {},
       };
     } catch {
-      return { level: 1, completed: new Set(), checklist: new Set(), perks: new Set(), notes: {} };
+      return { level: 1, completed: new Set(), checklist: new Set(), perks: new Set(), gear: new Set(), notes: {} };
     }
   }
 
@@ -55,6 +57,7 @@
         completed: [...state.completed],
         checklist: [...state.checklist],
         perks: [...state.perks],
+        gear: [...state.gear],
         notes: state.notes,
       })
     );
@@ -75,6 +78,12 @@
   function togglePerk(id) {
     if (state.perks.has(id)) state.perks.delete(id);
     else state.perks.add(id);
+    saveState();
+  }
+
+  function toggleGear(id) {
+    if (state.gear.has(id)) state.gear.delete(id);
+    else state.gear.add(id);
     saveState();
   }
 
@@ -705,6 +714,86 @@
   }
 
   // ===========================================================
+  //  Section 6: Gear (best armor/weapons/horses, "obtained" tracking)
+  // ===========================================================
+  const gearFilter = { category: "" };
+  const gearId = (cat, name) => "gear:" + cat + ":" + name;
+
+  function renderGear() {
+    const cats = gearFilter.category ? GEAR.filter((c) => c.category === gearFilter.category) : GEAR;
+
+    const totalAll = GEAR.reduce((n, c) => n + c.items.length, 0);
+    const totalGot = GEAR.reduce(
+      (n, c) => n + c.items.filter((it) => state.gear.has(gearId(c.category, it.name))).length,
+      0
+    );
+
+    const sections = cats.map((c) => {
+      const got = c.items.filter((it) => state.gear.has(gearId(c.category, it.name))).length;
+      const list = h("div", { class: "list" });
+      c.items.forEach((it) => {
+        const id = gearId(c.category, it.name);
+        const done = state.gear.has(id);
+        const cb = h("input", { type: "checkbox" });
+        cb.checked = done;
+        cb.addEventListener("change", () => {
+          toggleGear(id);
+          render();
+        });
+        list.appendChild(
+          h(
+            "label",
+            { class: "card checkbox-row", style: "align-items:flex-start" },
+            cb,
+            h(
+              "span",
+              null,
+              h("strong", { style: done ? "text-decoration:line-through;opacity:0.6" : "" }, it.name),
+              h(
+                "span",
+                { class: "tag-row", style: "margin:0.3rem 0 0" },
+                it.where ? h("span", { class: "tag" }, "📍 " + it.where) : null,
+                it.dlc ? h("span", { class: "tag tag--warn" }, it.dlc) : null
+              ),
+              it.note ? h("span", { class: "muted", style: "display:block;margin-top:0.2rem" }, it.note) : null
+            )
+          )
+        );
+      });
+      return h(
+        "div",
+        { style: "margin-bottom:1.25rem" },
+        h("h3", null, c.category + " (" + got + "/" + c.items.length + ")"),
+        list
+      );
+    });
+
+    const catSelect = h("select", { id: "gear-cat", onchange: (e) => { gearFilter.category = e.target.value; render(); } });
+    catSelect.appendChild(h("option", { value: "" }, "All categories"));
+    GEAR.forEach((c) => {
+      const o = h("option", { value: c.category }, c.category);
+      if (c.category === gearFilter.category) o.selected = true;
+      catSelect.appendChild(o);
+    });
+
+    return h(
+      "div",
+      null,
+      pageHeader(
+        "🛡️ Gear",
+        "Best armor, weapons, horses and horse gear — with where to get them. Tick what you've obtained (stored locally)."
+      ),
+      h(
+        "div",
+        { class: "toolbar" },
+        h("div", { class: "field" }, h("label", { for: "gear-cat" }, "Category"), catSelect),
+        h("div", { class: "field" }, h("label", null, "Obtained"), h("div", { class: "muted", style: "padding:0.5rem 0" }, totalGot + " / " + totalAll))
+      ),
+      sections
+    );
+  }
+
+  // ===========================================================
   //  Section 0: Overview (dashboard + global search + export/import)
   // ===========================================================
   const overviewState = { query: "" };
@@ -728,6 +817,7 @@
       completed: [...state.completed],
       checklist: [...state.checklist],
       perks: [...state.perks],
+      gear: [...state.gear],
       notes: state.notes,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -752,6 +842,7 @@
         state.completed = new Set(data.completed);
         state.checklist = new Set(Array.isArray(data.checklist) ? data.checklist : []);
         state.perks = new Set(Array.isArray(data.perks) ? data.perks : []);
+        state.gear = new Set(Array.isArray(data.gear) ? data.gear : []);
         state.notes = data.notes && typeof data.notes === "object" ? data.notes : {};
         saveState();
         render();
@@ -775,7 +866,13 @@
         if (hit(p.name) || hit(p.note) || hit(c.category)) perks.push({ category: c.category, perk: p });
       })
     );
-    return { quests: quests.slice(0, 15), locations: locations.slice(0, 10), perks: perks.slice(0, 10) };
+    const gear = [];
+    GEAR.forEach((c) =>
+      c.items.forEach((it) => {
+        if (hit(it.name) || hit(it.note) || hit(it.where) || hit(c.category)) gear.push({ category: c.category, item: it });
+      })
+    );
+    return { quests: quests.slice(0, 15), locations: locations.slice(0, 10), perks: perks.slice(0, 10), gear: gear.slice(0, 10) };
   }
 
   function buildSearchResults() {
@@ -785,7 +882,7 @@
       if (overviewState.query.trim()) box.appendChild(h("p", { class: "muted" }, "Type at least 2 characters…"));
       return box;
     }
-    const total = res.quests.length + res.locations.length + res.perks.length;
+    const total = res.quests.length + res.locations.length + res.perks.length + res.gear.length;
     if (total === 0) {
       box.appendChild(h("div", { class: "empty" }, "No results."));
       return box;
@@ -854,6 +951,26 @@
         )
       );
     }
+    if (res.gear.length) {
+      box.appendChild(h("h4", { style: "margin:0.8rem 0 0.4rem" }, "Gear"));
+      res.gear.forEach(({ category, item }) =>
+        box.appendChild(
+          h(
+            "button",
+            {
+              class: "card clickable",
+              style: "margin-bottom:0.5rem",
+              onclick: () => {
+                gearFilter.category = category;
+                location.hash = "#gear";
+              },
+            },
+            h("div", { class: "row-between" }, h("strong", null, item.name), h("span", { class: "tag tag--accent" }, category)),
+            item.where ? h("span", { class: "muted" }, "📍 " + item.where) : null
+          )
+        )
+      );
+    }
     return box;
   }
 
@@ -909,6 +1026,7 @@
         statCard("Main story", mainDone + " / " + mainTotal, Math.round((mainDone / Math.max(1, mainTotal)) * 100) + "% complete"),
         regionStats,
         statCard("Perks picked", PERKS.reduce((n, c) => n + c.perks.filter((p) => state.perks.has("perk:" + c.category + ":" + p.name)).length, 0) + " / " + totalPerks),
+        statCard("Gear obtained", GEAR.reduce((n, c) => n + c.items.filter((it) => state.gear.has("gear:" + c.category + ":" + it.name)).length, 0) + " / " + GEAR.reduce((n, c) => n + c.items.length, 0)),
         statCard("Notes", Object.keys(state.notes).length, "quests with notes")
       ),
       h("h3", null, "Search"),
@@ -938,6 +1056,7 @@
     { id: "next", label: "What to do next", icon: "🎯", render: renderRecommendations },
     { id: "checklist", label: "Checklist", icon: "✅", render: renderChecklist },
     { id: "perks", label: "Perks", icon: "🌟", render: renderPerks },
+    { id: "gear", label: "Gear", icon: "🛡️", render: renderGear },
     { id: "map", label: "Map", icon: "🗺️", render: renderMap },
   ];
 
