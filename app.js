@@ -38,9 +38,10 @@
         completed: new Set(Array.isArray(parsed.completed) ? parsed.completed : []),
         checklist: new Set(Array.isArray(parsed.checklist) ? parsed.checklist : []),
         perks: new Set(Array.isArray(parsed.perks) ? parsed.perks : []),
+        notes: parsed.notes && typeof parsed.notes === "object" ? parsed.notes : {},
       };
     } catch {
-      return { level: 1, completed: new Set(), checklist: new Set(), perks: new Set() };
+      return { level: 1, completed: new Set(), checklist: new Set(), perks: new Set(), notes: {} };
     }
   }
 
@@ -54,6 +55,7 @@
         completed: [...state.completed],
         checklist: [...state.checklist],
         perks: [...state.perks],
+        notes: state.notes,
       })
     );
   }
@@ -120,6 +122,10 @@
     return (q.prerequisites || []).map((id) => (QUEST_BY_ID[id] && QUEST_BY_ID[id].name) || id);
   }
 
+  const TYPE_LABEL = { main: "Main quest", side: "Side quest", task: "Task" };
+  const TYPE_SHORT = { main: "Main", side: "Side", task: "Task" };
+  const TYPE_ORDER = { main: 0, side: 1, task: 2 };
+
   function regionUnlocked(region) {
     if (region === "Kuttenberg") return state.completed.has(KUTTENBERG_UNLOCK);
     return true; // Trosky is available from the start
@@ -160,10 +166,11 @@
       h(
         "div",
         { class: "tag-row", style: "margin:0.35rem 0 0" },
-        h("span", { class: "tag tag--accent" }, qst.type === "main" ? "Main" : "Side"),
+        h("span", { class: "tag tag--accent" }, TYPE_SHORT[qst.type] || qst.type),
         h("span", { class: "tag" }, "📍 " + qst.region),
         qst.storyOrder ? h("span", { class: "tag" }, "#" + qst.storyOrder) : null,
-        qst.missable ? h("span", { class: "tag tag--warn" }, "Missable") : null
+        qst.missable ? h("span", { class: "tag tag--warn" }, "Missable") : null,
+        state.notes[qst.id] ? h("span", { class: "tag" }, "📝") : null
       )
     );
   }
@@ -196,7 +203,7 @@
       h(
         "div",
         { class: "tag-row" },
-        h("span", { class: "tag tag--accent" }, qst.type === "main" ? "Main quest" : "Side quest"),
+        h("span", { class: "tag tag--accent" }, TYPE_LABEL[qst.type] || qst.type),
         h("span", { class: "tag" }, "📍 " + qst.region),
         qst.storyOrder ? h("span", { class: "tag" }, "Story #" + qst.storyOrder) : null,
         qst.missable ? h("span", { class: "tag tag--warn" }, "Missable") : null
@@ -208,7 +215,23 @@
         ? h("p", { class: "muted", style: "margin:0.2rem 0 0" }, "🔒 Still locked until you finish: " + missing.join(", "))
         : null,
       qst.note ? h("p", { style: "margin:0.4rem 0 0;color:var(--danger)" }, "⚠️ " + qst.note) : null,
-      h("label", { class: "checkbox-row", style: "margin-top:0.8rem" }, checkbox, "Mark as done")
+      h("label", { class: "checkbox-row", style: "margin-top:0.8rem" }, checkbox, "Mark as done"),
+      h("h4", { style: "margin:1rem 0 0.3rem" }, "Your notes"),
+      (function () {
+        // Saved on every keystroke, no re-render (keeps the cursor in place).
+        const ta = h("textarea", {
+          rows: "4",
+          placeholder: "Private notes for this quest — stored locally.",
+          style: "width:100%;resize:vertical;background:var(--surface-2);border:1px solid var(--border);border-radius:var(--radius);padding:0.5rem 0.7rem;color:var(--text);font:inherit",
+        });
+        ta.value = state.notes[qst.id] || "";
+        ta.addEventListener("input", () => {
+          if (ta.value.trim()) state.notes[qst.id] = ta.value;
+          else delete state.notes[qst.id];
+          saveState();
+        });
+        return ta;
+      })()
     );
   }
 
@@ -222,9 +245,9 @@
       return matchesRegion && matchesType && matchesStatus;
     });
 
-    // Main quests by story order first, then side quests by name.
+    // Main quests by story order first, then side quests, then tasks (by name).
     filtered.sort((a, b) => {
-      if (a.type !== b.type) return a.type === "main" ? -1 : 1;
+      if (a.type !== b.type) return (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9);
       if (a.type === "main") return (a.storyOrder || 0) - (b.storyOrder || 0);
       return a.name.localeCompare(b.name, "en");
     });
@@ -256,7 +279,7 @@
           "quest-type",
           "Type",
           questsFilter.type,
-          [{ value: "main", label: "Main" }, { value: "side", label: "Side" }],
+          [{ value: "main", label: "Main" }, { value: "side", label: "Side" }, { value: "task", label: "Task" }],
           (v) => {
             questsFilter.type = v;
             render();
@@ -292,9 +315,10 @@
     const next = mains[0] || null;
 
     const availableSide = available
-      .filter((q) => q.type === "side")
+      .filter((q) => q.type === "side" || q.type === "task")
       .sort((a, b) => {
         if (!!a.missable !== !!b.missable) return a.missable ? -1 : 1;
+        if (a.type !== b.type) return (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9);
         if (a.region !== b.region) return a.region.localeCompare(b.region, "en");
         return a.name.localeCompare(b.name, "en");
       });
@@ -316,7 +340,7 @@
           rank ? h("span", { class: "rec-rank" }, rank) : null,
           h("strong", null, qst.name)
         ),
-        h("span", { class: "tag tag--accent" }, qst.type === "main" ? "Main" : "Side")
+        h("span", { class: "tag tag--accent" }, TYPE_SHORT[qst.type] || qst.type)
       ),
       h("p", { class: "muted", style: "margin:0.3rem 0" }, qst.description || ""),
       h(
@@ -378,7 +402,7 @@
       ),
       h("h3", null, "Next in the story"),
       nextBox,
-      h("h3", { style: "margin-top:1.25rem" }, "Side quests available now"),
+      h("h3", { style: "margin-top:1.25rem" }, "Side quests & tasks available now"),
       sideList
     );
   }
@@ -512,16 +536,17 @@
     const region = checklistState.region;
     const cfg = CHECKLIST[region];
 
-    // Auto-pulled: still-open side quests of this region.
+    // Auto-pulled: still-open side quests and tasks of this region.
     const openSide = QUESTS.filter(
-      (q) => q.type === "side" && q.region === region && !state.completed.has(q.id)
+      (q) => (q.type === "side" || q.type === "task") && q.region === region && !state.completed.has(q.id)
     ).sort((a, b) => {
       if (!!a.missable !== !!b.missable) return a.missable ? -1 : 1;
+      if (a.type !== b.type) return (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9);
       return a.name.localeCompare(b.name, "en");
     });
 
     const sideList = h("div", { class: "list" });
-    if (openSide.length === 0) sideList.appendChild(h("div", { class: "empty" }, "All side quests in this region are done. 🎉"));
+    if (openSide.length === 0) sideList.appendChild(h("div", { class: "empty" }, "All side quests & tasks in this region are done. 🎉"));
     openSide.forEach((q) =>
       sideList.appendChild(
         checklistRow({
@@ -530,6 +555,7 @@
           onToggle: () => toggleCompleted(q.id),
           label: q.name,
           tags: [
+            { text: TYPE_SHORT[q.type] || q.type },
             q.giver ? { text: "📍 " + q.giver } : null,
             q.missable ? { text: "Missable", cls: "tag--warn" } : null,
           ].filter(Boolean),
@@ -595,9 +621,9 @@
             (cfg.notes || []).map((n) => h("p", { class: "muted", style: "margin:0.4rem 0 0" }, "ℹ️ " + n))
           )
         : null,
-      h("h3", null, "Open side quests (" + openSide.length + ")"),
+      h("h3", null, "Open side quests & tasks (" + openSide.length + ")"),
       sideList,
-      h("h3", { style: "margin-top:1.25rem" }, "Tasks & extras"),
+      h("h3", { style: "margin-top:1.25rem" }, "Items & activities"),
       extrasList
     );
   }
@@ -679,9 +705,235 @@
   }
 
   // ===========================================================
+  //  Section 0: Overview (dashboard + global search + export/import)
+  // ===========================================================
+  const overviewState = { query: "" };
+
+  function statCard(label, value, sub) {
+    return h(
+      "div",
+      { class: "card" },
+      h("div", { class: "muted", style: "font-size:0.78rem;text-transform:uppercase;letter-spacing:0.03em" }, label),
+      h("div", { style: "font-size:1.5rem;font-weight:700;color:var(--accent)" }, value),
+      sub ? h("div", { class: "muted", style: "font-size:0.85rem" }, sub) : null
+    );
+  }
+
+  function exportProgress() {
+    const payload = {
+      app: "kcd2-companion",
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      level: state.level,
+      completed: [...state.completed],
+      checklist: [...state.checklist],
+      perks: [...state.perks],
+      notes: state.notes,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "kcd2-progress.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+
+  function importProgress(file) {
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result);
+        if (!data || data.app !== "kcd2-companion" || !Array.isArray(data.completed)) {
+          alert("This doesn't look like a KCD2 Companion progress file.");
+          return;
+        }
+        if (!confirm("Replace your current progress with the imported file?")) return;
+        state.level = Number(data.level) || 1;
+        state.completed = new Set(data.completed);
+        state.checklist = new Set(Array.isArray(data.checklist) ? data.checklist : []);
+        state.perks = new Set(Array.isArray(data.perks) ? data.perks : []);
+        state.notes = data.notes && typeof data.notes === "object" ? data.notes : {};
+        saveState();
+        render();
+        alert("Progress imported.");
+      } catch {
+        alert("Could not read the file (invalid JSON).");
+      }
+    };
+    reader.readAsText(file);
+  }
+
+  function searchEverything(query) {
+    const q = query.trim().toLowerCase();
+    if (q.length < 2) return null;
+    const hit = (s) => (s || "").toLowerCase().includes(q);
+    const quests = QUESTS.filter((x) => hit(x.name) || hit(x.giver) || hit(x.description) || hit(x.note));
+    const locations = LOCATIONS.filter((x) => hit(x.name) || hit(x.area) || hit(x.note));
+    const perks = [];
+    PERKS.forEach((c) =>
+      c.perks.forEach((p) => {
+        if (hit(p.name) || hit(p.note) || hit(c.category)) perks.push({ category: c.category, perk: p });
+      })
+    );
+    return { quests: quests.slice(0, 15), locations: locations.slice(0, 10), perks: perks.slice(0, 10) };
+  }
+
+  function buildSearchResults() {
+    const box = h("div", { id: "search-results" });
+    const res = searchEverything(overviewState.query);
+    if (!res) {
+      if (overviewState.query.trim()) box.appendChild(h("p", { class: "muted" }, "Type at least 2 characters…"));
+      return box;
+    }
+    const total = res.quests.length + res.locations.length + res.perks.length;
+    if (total === 0) {
+      box.appendChild(h("div", { class: "empty" }, "No results."));
+      return box;
+    }
+    if (res.quests.length) {
+      box.appendChild(h("h4", { style: "margin:0.8rem 0 0.4rem" }, "Quests"));
+      res.quests.forEach((qst) =>
+        box.appendChild(
+          h(
+            "button",
+            {
+              class: "card clickable",
+              style: "margin-bottom:0.5rem",
+              onclick: () => {
+                questsFilter.region = "";
+                questsFilter.type = "";
+                questsFilter.status = "";
+                questsFilter.selectedId = qst.id;
+                location.hash = "#quests";
+              },
+            },
+            h("div", { class: "row-between" }, h("strong", null, qst.name), h("span", { class: "tag tag--accent" }, TYPE_SHORT[qst.type] || qst.type)),
+            h("span", { class: "muted" }, "📍 " + qst.region + (qst.giver ? " · " + qst.giver : ""))
+          )
+        )
+      );
+    }
+    if (res.locations.length) {
+      box.appendChild(h("h4", { style: "margin:0.8rem 0 0.4rem" }, "Locations"));
+      res.locations.forEach((l) =>
+        box.appendChild(
+          h(
+            "button",
+            {
+              class: "card clickable",
+              style: "margin-bottom:0.5rem",
+              onclick: () => {
+                mapState.mode = "region";
+                mapState.region = l.region;
+                location.hash = "#map";
+              },
+            },
+            h("div", { class: "row-between" }, h("strong", null, l.name), h("span", { class: "tag tag--accent" }, l.type)),
+            h("span", { class: "muted" }, "📍 " + l.region + (l.area ? " · " + l.area : ""))
+          )
+        )
+      );
+    }
+    if (res.perks.length) {
+      box.appendChild(h("h4", { style: "margin:0.8rem 0 0.4rem" }, "Perks"));
+      res.perks.forEach(({ category, perk }) =>
+        box.appendChild(
+          h(
+            "button",
+            {
+              class: "card clickable",
+              style: "margin-bottom:0.5rem",
+              onclick: () => {
+                perksFilter.category = category;
+                location.hash = "#perks";
+              },
+            },
+            h("div", { class: "row-between" }, h("strong", null, perk.name), h("span", { class: "tag tag--accent" }, category)),
+            perk.note ? h("span", { class: "muted" }, perk.note) : null
+          )
+        )
+      );
+    }
+    return box;
+  }
+
+  function renderOverview() {
+    const count = (pred) => QUESTS.filter(pred).length;
+    const done = (pred) => QUESTS.filter((q) => pred(q) && state.completed.has(q.id)).length;
+
+    const mainTotal = count((q) => q.type === "main");
+    const mainDone = done((q) => q.type === "main");
+    const totalPerks = PERKS.reduce((n, c) => n + c.perks.length, 0);
+
+    const regionStats = ALL_REGIONS.map((r) => {
+      const sideT = count((q) => q.type === "side" && q.region === r);
+      const sideD = done((q) => q.type === "side" && q.region === r);
+      const taskT = count((q) => q.type === "task" && q.region === r);
+      const taskD = done((q) => q.type === "task" && q.region === r);
+      const ponrId = PONR[r];
+      const passed = ponrId && state.completed.has(ponrId);
+      return statCard(
+        r,
+        sideD + taskD + " / " + (sideT + taskT),
+        "Side " + sideD + "/" + sideT + " · Tasks " + taskD + "/" + taskT + (passed ? " · ⚠️ past PONR" : "")
+      );
+    });
+
+    // Search input updates only the results container, so the cursor stays put.
+    const searchInput = h("input", {
+      id: "global-search",
+      type: "search",
+      placeholder: "Search quests, locations, perks…",
+      value: overviewState.query,
+      style: "width:100%",
+    });
+    searchInput.addEventListener("input", (e) => {
+      overviewState.query = e.target.value;
+      const old = document.getElementById("search-results");
+      if (old) old.replaceWith(buildSearchResults());
+    });
+
+    const fileInput = h("input", { type: "file", accept: ".json,application/json", style: "display:none" });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files && fileInput.files[0]) importProgress(fileInput.files[0]);
+      fileInput.value = "";
+    });
+
+    return h(
+      "div",
+      null,
+      pageHeader("🏰 Overview", "Your progress at a glance, global search, and progress backup."),
+      h(
+        "div",
+        { class: "grid", style: "margin-bottom:1.25rem" },
+        statCard("Main story", mainDone + " / " + mainTotal, Math.round((mainDone / Math.max(1, mainTotal)) * 100) + "% complete"),
+        regionStats,
+        statCard("Perks picked", PERKS.reduce((n, c) => n + c.perks.filter((p) => state.perks.has("perk:" + c.category + ":" + p.name)).length, 0) + " / " + totalPerks),
+        statCard("Notes", Object.keys(state.notes).length, "quests with notes")
+      ),
+      h("h3", null, "Search"),
+      h("div", { class: "card", style: "margin-bottom:1.25rem" }, searchInput, buildSearchResults()),
+      h("h3", null, "Backup"),
+      h(
+        "div",
+        { class: "card" },
+        h("p", { class: "muted", style: "margin:0 0 0.6rem" }, "Progress lives only in this browser. Export it to a file as a backup, or to move it to another device — then import it there."),
+        h(
+          "div",
+          { style: "display:flex;gap:0.6rem;flex-wrap:wrap" },
+          h("button", { onclick: exportProgress }, "⬇️ Export progress"),
+          h("button", { onclick: () => fileInput.click() }, "⬆️ Import progress"),
+          fileInput
+        )
+      )
+    );
+  }
+
+  // ===========================================================
   //  Navigation + router
   // ===========================================================
   const SECTIONS = [
+    { id: "overview", label: "Overview", icon: "🏰", render: renderOverview },
     { id: "quests", label: "Quests", icon: "📜", render: renderQuests },
     { id: "next", label: "What to do next", icon: "🎯", render: renderRecommendations },
     { id: "checklist", label: "Checklist", icon: "✅", render: renderChecklist },

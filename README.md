@@ -15,14 +15,18 @@ Your progress (level + completed quests) is stored in the browser's
 
 ## Features
 
-- **Quests** – all main and side quests. Click a quest for a **detail panel**
-  (quest giver, what to do, region, prerequisites, missable/notes). Filter by
+- **Overview** – dashboard (story %, side/tasks per region, perks, PONR status),
+  **global search** across quests, locations and perks, and **export/import**
+  of your progress as a JSON backup file.
+- **Quests** – all main quests, side quests **and tasks** (127 entries). Click a
+  quest for a **detail panel** (quest giver, what to do, prerequisites,
+  missable/notes) including a private **notes field** per quest. Filter by
   region, type and status; mark quests done (stored locally).
 - **What to do next** – story-aware recommendations: the next main quest, plus
   the side quests available right now, with **point-of-no-return** warnings.
 - **Checklist** – "before the point of no return" per region: still-open side
-  quests are pulled in automatically, plus a curated list of **missable tasks**
-  and item/activity reminders. Everything is checkable.
+  quests **and tasks** are pulled in automatically (missable first), plus
+  item/activity reminders. Everything is checkable.
 - **Perks** – a curated "which perks to grab" overview per category (skill).
   Tick the ones you've taken; progress is stored locally.
 - **Map** – pick a region or a quest to see merchants and landmarks in that region.
@@ -50,7 +54,7 @@ and don't forget the comma between entries.
 {
   id: "sk25",
   name: "My new side quest",
-  type: "side",            // "main" | "side"
+  type: "side",            // "main" | "side" | "task"
   region: "Kuttenberg",    // "Trosky" | "Kuttenberg"
   description: "What it's about.",
   storyOrder: null,        // main quests: 1..32; side quests: null
