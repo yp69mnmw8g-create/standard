@@ -13,7 +13,7 @@
   const LOCATIONS = window.KCD2_LOCATIONS || [];
   const CHECKLIST = window.KCD2_CHECKLIST || {};
   const PERKS = window.KCD2_PERKS || [];
-  const GEAR = window.KCD2_GEAR || [];
+  const GEAR = window.KCD2_GEAR || { phases: [], items: [] };
   const QUEST_BY_ID = Object.fromEntries(QUESTS.map((q) => [q.id, q]));
 
   // Story rules (see data/quests.js)
@@ -714,82 +714,104 @@
   }
 
   // ===========================================================
-  //  Section 6: Gear (best armor/weapons/horses, "obtained" tracking)
+  //  Section 6: Gear roadmap (best gear by acquisition phase)
   // ===========================================================
-  const gearFilter = { category: "" };
-  const gearId = (cat, name) => "gear:" + cat + ":" + name;
+  const GEAR_TYPE_ICON = { Armor: "🛡️", Weapon: "⚔️", Horse: "🐴", "Horse gear": "🐎" };
+  const gearFilter = { type: "", hideObtained: false };
+  const gearId = (phase, name) => "gear:" + phase + ":" + name;
+
+  function gearItemRow(it) {
+    const id = gearId(it.phase, it.name);
+    const done = state.gear.has(id);
+    const cb = h("input", { type: "checkbox" });
+    cb.checked = done;
+    cb.addEventListener("change", () => {
+      toggleGear(id);
+      render();
+    });
+    return h(
+      "label",
+      { class: "card checkbox-row", style: "align-items:flex-start" },
+      cb,
+      h(
+        "span",
+        null,
+        h("strong", { style: done ? "text-decoration:line-through;opacity:0.6" : "" }, it.name),
+        h(
+          "span",
+          { class: "tag-row", style: "margin:0.3rem 0 0" },
+          h("span", { class: "tag tag--accent" }, (GEAR_TYPE_ICON[it.type] || "") + " " + it.type),
+          it.where ? h("span", { class: "tag" }, "📍 " + it.where) : null,
+          it.dlc ? h("span", { class: "tag tag--warn" }, it.dlc) : null
+        ),
+        it.note ? h("span", { class: "muted", style: "display:block;margin-top:0.2rem" }, it.note) : null
+      )
+    );
+  }
 
   function renderGear() {
-    const cats = gearFilter.category ? GEAR.filter((c) => c.category === gearFilter.category) : GEAR;
+    const totalAll = GEAR.items.length;
+    const totalGot = GEAR.items.filter((it) => state.gear.has(gearId(it.phase, it.name))).length;
 
-    const totalAll = GEAR.reduce((n, c) => n + c.items.length, 0);
-    const totalGot = GEAR.reduce(
-      (n, c) => n + c.items.filter((it) => state.gear.has(gearId(c.category, it.name))).length,
-      0
-    );
-
-    const sections = cats.map((c) => {
-      const got = c.items.filter((it) => state.gear.has(gearId(c.category, it.name))).length;
-      const list = h("div", { class: "list" });
-      c.items.forEach((it) => {
-        const id = gearId(c.category, it.name);
-        const done = state.gear.has(id);
-        const cb = h("input", { type: "checkbox" });
-        cb.checked = done;
-        cb.addEventListener("change", () => {
-          toggleGear(id);
-          render();
-        });
-        list.appendChild(
-          h(
-            "label",
-            { class: "card checkbox-row", style: "align-items:flex-start" },
-            cb,
-            h(
-              "span",
-              null,
-              h("strong", { style: done ? "text-decoration:line-through;opacity:0.6" : "" }, it.name),
-              h(
-                "span",
-                { class: "tag-row", style: "margin:0.3rem 0 0" },
-                it.where ? h("span", { class: "tag" }, "📍 " + it.where) : null,
-                it.dlc ? h("span", { class: "tag tag--warn" }, it.dlc) : null
-              ),
-              it.note ? h("span", { class: "muted", style: "display:block;margin-top:0.2rem" }, it.note) : null
-            )
-          )
-        );
+    // One section per phase, in order — the roadmap you work through over time.
+    const phaseSections = GEAR.phases.map((ph, idx) => {
+      const all = GEAR.items.filter((it) => it.phase === ph.id);
+      const got = all.filter((it) => state.gear.has(gearId(it.phase, it.name))).length;
+      const shown = all.filter((it) => {
+        if (gearFilter.type && it.type !== gearFilter.type) return false;
+        if (gearFilter.hideObtained && state.gear.has(gearId(it.phase, it.name))) return false;
+        return true;
       });
+
+      const list = h("div", { class: "list" });
+      if (shown.length === 0) list.appendChild(h("div", { class: "empty" }, "Nothing here with the current filter."));
+      shown.forEach((it) => list.appendChild(gearItemRow(it)));
+
+      const complete = all.length > 0 && got === all.length;
       return h(
         "div",
-        { style: "margin-bottom:1.25rem" },
-        h("h3", null, c.category + " (" + got + "/" + c.items.length + ")"),
+        { style: "margin-bottom:1.5rem" },
+        h(
+          "div",
+          { class: "row-between", style: "border-left:3px solid var(--accent);padding-left:0.6rem" },
+          h("h3", { style: "margin:0" }, h("span", { class: "rec-rank", style: "font-size:1rem;min-width:auto;margin-right:0.4rem" }, idx + 1), ph.label),
+          h("span", { class: "tag " + (complete ? "tag--ok" : "") }, got + " / " + all.length)
+        ),
+        ph.note ? h("p", { class: "muted", style: "margin:0.3rem 0 0.6rem;padding-left:0.6rem" }, ph.note) : null,
         list
       );
     });
 
-    const catSelect = h("select", { id: "gear-cat", onchange: (e) => { gearFilter.category = e.target.value; render(); } });
-    catSelect.appendChild(h("option", { value: "" }, "All categories"));
-    GEAR.forEach((c) => {
-      const o = h("option", { value: c.category }, c.category);
-      if (c.category === gearFilter.category) o.selected = true;
-      catSelect.appendChild(o);
+    const typeSelect = h("select", { id: "gear-type", onchange: (e) => { gearFilter.type = e.target.value; render(); } });
+    typeSelect.appendChild(h("option", { value: "" }, "All types"));
+    ["Armor", "Weapon", "Horse", "Horse gear"].forEach((t) => {
+      const o = h("option", { value: t }, t);
+      if (t === gearFilter.type) o.selected = true;
+      typeSelect.appendChild(o);
+    });
+
+    const hideCb = h("input", { type: "checkbox" });
+    hideCb.checked = gearFilter.hideObtained;
+    hideCb.addEventListener("change", () => {
+      gearFilter.hideObtained = hideCb.checked;
+      render();
     });
 
     return h(
       "div",
       null,
       pageHeader(
-        "🛡️ Gear",
-        "Best armor, weapons, horses and horse gear — with where to get them. Tick what you've obtained (stored locally)."
+        "🛡️ Gear roadmap",
+        "Best gear in the order you can realistically get it — work through it as you progress. Tick what you've obtained (stored locally)."
       ),
       h(
         "div",
         { class: "toolbar" },
-        h("div", { class: "field" }, h("label", { for: "gear-cat" }, "Category"), catSelect),
-        h("div", { class: "field" }, h("label", null, "Obtained"), h("div", { class: "muted", style: "padding:0.5rem 0" }, totalGot + " / " + totalAll))
+        h("div", { class: "field" }, h("label", { for: "gear-type" }, "Type"), typeSelect),
+        h("div", { class: "field" }, h("label", null, "Obtained"), h("div", { class: "muted", style: "padding:0.5rem 0" }, totalGot + " / " + totalAll)),
+        h("div", { class: "field" }, h("label", null, "Filter"), h("label", { class: "checkbox-row", style: "padding:0.4rem 0" }, hideCb, "Hide obtained"))
       ),
-      sections
+      phaseSections
     );
   }
 
@@ -866,12 +888,7 @@
         if (hit(p.name) || hit(p.note) || hit(c.category)) perks.push({ category: c.category, perk: p });
       })
     );
-    const gear = [];
-    GEAR.forEach((c) =>
-      c.items.forEach((it) => {
-        if (hit(it.name) || hit(it.note) || hit(it.where) || hit(c.category)) gear.push({ category: c.category, item: it });
-      })
-    );
+    const gear = GEAR.items.filter((it) => hit(it.name) || hit(it.note) || hit(it.where) || hit(it.type));
     return { quests: quests.slice(0, 15), locations: locations.slice(0, 10), perks: perks.slice(0, 10), gear: gear.slice(0, 10) };
   }
 
@@ -953,7 +970,7 @@
     }
     if (res.gear.length) {
       box.appendChild(h("h4", { style: "margin:0.8rem 0 0.4rem" }, "Gear"));
-      res.gear.forEach(({ category, item }) =>
+      res.gear.forEach((item) =>
         box.appendChild(
           h(
             "button",
@@ -961,11 +978,12 @@
               class: "card clickable",
               style: "margin-bottom:0.5rem",
               onclick: () => {
-                gearFilter.category = category;
+                gearFilter.type = "";
+                gearFilter.hideObtained = false;
                 location.hash = "#gear";
               },
             },
-            h("div", { class: "row-between" }, h("strong", null, item.name), h("span", { class: "tag tag--accent" }, category)),
+            h("div", { class: "row-between" }, h("strong", null, item.name), h("span", { class: "tag tag--accent" }, item.type)),
             item.where ? h("span", { class: "muted" }, "📍 " + item.where) : null
           )
         )
@@ -1026,7 +1044,7 @@
         statCard("Main story", mainDone + " / " + mainTotal, Math.round((mainDone / Math.max(1, mainTotal)) * 100) + "% complete"),
         regionStats,
         statCard("Perks picked", PERKS.reduce((n, c) => n + c.perks.filter((p) => state.perks.has("perk:" + c.category + ":" + p.name)).length, 0) + " / " + totalPerks),
-        statCard("Gear obtained", GEAR.reduce((n, c) => n + c.items.filter((it) => state.gear.has("gear:" + c.category + ":" + it.name)).length, 0) + " / " + GEAR.reduce((n, c) => n + c.items.length, 0)),
+        statCard("Gear obtained", GEAR.items.filter((it) => state.gear.has("gear:" + it.phase + ":" + it.name)).length + " / " + GEAR.items.length),
         statCard("Notes", Object.keys(state.notes).length, "quests with notes")
       ),
       h("h3", null, "Search"),

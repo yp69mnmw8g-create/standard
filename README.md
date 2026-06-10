@@ -29,8 +29,10 @@ Your progress (level + completed quests) is stored in the browser's
   item/activity reminders. Everything is checkable.
 - **Perks** – a curated "which perks to grab" overview per category (skill).
   Tick the ones you've taken; progress is stored locally.
-- **Gear** – best armor (early/late), weapons, horses and horse gear with
-  where to get them (DLC items marked). Tick what you've obtained.
+- **Gear roadmap** – best armor, weapons, horses and horse gear ordered by
+  acquisition phase (Early Trosky → "Storm" → Kuttenberg → DLC), so you can work
+  through it over time. Per-phase progress, type filter, "hide obtained", and
+  where to get each item (DLC items marked).
 - **Map** – pick a region or a quest to see merchants and landmarks in that region.
 
 ### How the recommendations work
