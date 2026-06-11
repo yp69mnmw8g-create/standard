@@ -14,9 +14,6 @@ on:
     # Bewusst eine "krumme" Minute: GitHubs Scheduler ist best effort und
     # verwirft/verzögert Läufe zu runden Zeiten (:00/:30) bei hoher Last.
     - cron: "37 4 * * *"
-    # TEMPORÄR: Test-Lauf, um zu prüfen, ob der Scheduler nach Wechsel des
-    # Default-Branch auf 'main' überhaupt feuert. Wird danach wieder entfernt.
-    - cron: "13 17 * * *"
   workflow_dispatch:
 
 permissions:
