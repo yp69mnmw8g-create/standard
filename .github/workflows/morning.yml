@@ -1,36 +1,26 @@
 name: Morgen-Übersicht
 
-# Baut jeden Morgen die Tagesübersicht (Wetter, Kalender, Nachrichten,
-# Ereignisse), veröffentlicht sie auf GitHub Pages und schickt sie – falls
-# die E-Mail-Secrets gesetzt sind – per Mail.
+# Erzeugt die Tagesübersicht (Wetter, Kalender, Welt-Nachrichten, Geschichte,
+# Wissen, Koran-Vers) und schickt sie – falls die E-Mail-Secrets gesetzt sind –
+# per Mail. Bewusst OHNE GitHub-Pages-Deploy: Der Mailversand soll unabhängig
+# von Pages/Umgebungs-Schutzregeln zuverlässig laufen. Die Live-Seite wird
+# separat vom Workflow "Deploy to GitHub Pages" aktualisiert.
 #
-# WICHTIG: Geplante (cron-)Läufe starten bei GitHub nur auf dem Default-Branch.
-# Bis dahin lässt sich der Workflow jederzeit manuell über "Run workflow"
-# (workflow_dispatch) auslösen.
+# Auslösung: am zuverlässigsten extern via Webhook auf den workflow_dispatch-
+# Endpunkt (z. B. cron-job.org). Der schedule-Cron unten ist nur ein Fallback –
+# GitHubs interner Scheduler feuert in diesem Repo nicht zuverlässig.
 
 on:
   schedule:
-    # 04:37 UTC ≈ 06:37 Sommerzeit / 05:37 Winterzeit (Europe/Berlin).
-    # Bewusst eine "krumme" Minute: GitHubs Scheduler ist best effort und
-    # verwirft/verzögert Läufe zu runden Zeiten (:00/:30) bei hoher Last.
     - cron: "37 4 * * *"
   workflow_dispatch:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build-and-send:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,20 +41,6 @@ jobs:
       - name: Datum für Betreff
         id: meta
         run: echo "date=$(TZ=Europe/Berlin date '+%d.%m.%Y')" >> "$GITHUB_OUTPUT"
-
-      - name: Seiten-Dateien bereitstellen
-        run: |
-          mkdir -p _site
-          cp -r index.html styles.css app.js data .nojekyll morning _site/
-
-      - name: Artefakt hochladen
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: _site
-
-      - name: Auf GitHub Pages veröffentlichen
-        id: deployment
-        uses: actions/deploy-pages@v4
 
       - name: Per E-Mail verschicken
         # Läuft nur, wenn ein Mail-Passwort als Secret hinterlegt ist.
