@@ -26,6 +26,7 @@
  *                            Mietkostenrechner des Jobcenters gegenprüfen)
  *    Ratingen        544 €  (Kreis Mettmann, Stand 01.04.2024)
  *    Erkrath         505 €  (Kreis Mettmann, Stand 01.04.2024)
+ *    Willich         480 €  (Kreis Viersen, Stand 01.01.2024)
  */
 const CITY_LIMITS = [
   { name: "Düsseldorf",      limit: 546, plz: [[40210, 40629]] },
@@ -34,6 +35,7 @@ const CITY_LIMITS = [
   { name: "Neuss",           limit: 590, plz: [[41460, 41472]] },
   { name: "Ratingen",        limit: 544, plz: [[40878, 40885]] },
   { name: "Erkrath",         limit: 505, plz: [[40699, 40699]] },
+  { name: "Willich",         limit: 480, plz: [[47877, 47877]] },
 ];
 
 // Geschätzte kalte Nebenkosten pro m² (nur für die Trefferliste verwendet,
