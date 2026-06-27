@@ -12,6 +12,11 @@ durchzurechnen, siehst du oben rechts ein Badge:
 - 🔴 **rot** – über der Grenze
 - 🟡 **gelb** – Stadt unbekannt oder Aufschlüsselung nicht auslesbar
 
+**In der Trefferliste** (Stufe 2) lädt das Script die Anzeigen automatisch im
+Hintergrund nach und markiert jede Kachel direkt mit der berechneten
+Bruttokaltmiete und 🟢/🔴 – so siehst du sofort, welche Anzeigen sich zu öffnen
+lohnen, ohne jede einzeln anzuklicken.
+
 ## Warum ein Userscript (und kein Scraper)?
 
 Es läuft **in deinem normalen, eingeloggten Browser**, während du ohnehin
@@ -54,6 +59,28 @@ gegenprüfen.
 **Werte ändern / Städte ergänzen:** ganz oben im Userscript im Block
 `CITY_LIMITS`. Jede Zeile hat `name`, `limit` (€) und `plz` (PLZ-Bereiche zur
 Stadterkennung).
+
+## Trefferlisten-Prüfung (Stufe 2) – Einstellungen
+
+Direkt unter `CITY_LIMITS` im Userscript:
+
+| Einstellung        | Bedeutung |
+|--------------------|-----------|
+| `AUTO_SCAN_LIST`   | Trefferliste automatisch im Hintergrund prüfen (`true`/`false`). |
+| `MAX_PARALLEL`     | Gleichzeitige Hintergrund-Abrufe. Klein halten (Standard 3). |
+| `FETCH_DELAY_MS`   | Pause zwischen Abrufen in ms (gegen Rate-Limit). |
+| `HIDE_OVER_LIMIT`  | `true` blendet zu teure Anzeigen ganz aus, statt sie nur rot zu markieren. |
+
+**Wie es funktioniert:** Das Script liest die Expose-IDs aus der Trefferliste,
+holt jede Detailseite *im selben eingeloggten Browser* nach, liest die Kosten
+(bevorzugt aus dem eingebetteten `utag_data`, sonst aus dem HTML) und markiert
+die Kachel. Ergebnisse werden pro Sitzung zwischengespeichert (`sessionStorage`),
+sodass Blättern/Zurück nichts doppelt lädt.
+
+**Falls IS24 ausbremst:** Bei zu vielen Abrufen kann IS24 ein CAPTCHA zeigen.
+Das Script erkennt das, stoppt die Hintergrund-Abrufe und weist im Badge darauf
+hin. Dann `MAX_PARALLEL` senken / `FETCH_DELAY_MS` erhöhen oder kurz warten.
+Die Detailseiten-Prüfung funktioniert unabhängig davon immer.
 
 ## Wie die Bruttokaltmiete berechnet wird
 
