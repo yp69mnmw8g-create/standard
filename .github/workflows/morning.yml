@@ -6,13 +6,12 @@ name: Morgen-Übersicht
 # von Pages/Umgebungs-Schutzregeln zuverlässig laufen. Die Live-Seite wird
 # separat vom Workflow "Deploy to GitHub Pages" aktualisiert.
 #
-# Auslösung: am zuverlässigsten extern via Webhook auf den workflow_dispatch-
-# Endpunkt (z. B. cron-job.org). Der schedule-Cron unten ist nur ein Fallback –
-# GitHubs interner Scheduler feuert in diesem Repo nicht zuverlässig.
+# Auslösung ausschließlich extern via Webhook auf den workflow_dispatch-
+# Endpunkt (cron-job.org, täglich 06:30). GitHubs interner schedule-Cron wird
+# bewusst NICHT genutzt: Er feuert hier Stunden zu spät und würde eine zweite
+# (Nachmittags-)Mail erzeugen.
 
 on:
-  schedule:
-    - cron: "37 4 * * *"
   workflow_dispatch:
 
 permissions:
