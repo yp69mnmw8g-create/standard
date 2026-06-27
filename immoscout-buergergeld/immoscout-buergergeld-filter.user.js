@@ -27,9 +27,11 @@
  *    Ratingen        544 €  (Kreis Mettmann, Stand 01.04.2024)
  *    Erkrath         505 €  (Kreis Mettmann, Stand 01.04.2024)
  *    Willich         480 €  (Kreis Viersen, Stand 01.01.2024)
+ *    Duisburg        446 €  (Stand 01.08.2025)
  */
 const CITY_LIMITS = [
   { name: "Düsseldorf",      limit: 546, plz: [[40210, 40629]] },
+  { name: "Duisburg",        limit: 446, plz: [[47051, 47279]] },
   { name: "Wuppertal",       limit: 466, plz: [[42103, 42399]] },
   { name: "Mönchengladbach", limit: 500, plz: [[41061, 41239]] },
   { name: "Neuss",           limit: 590, plz: [[41460, 41472]] },
