@@ -50,6 +50,8 @@ suchst. Dadurch:
 | Erkrath         | 505 €    | 01.04.2024   |
 | Willich         | 480 €    | 01.01.2024   |
 | Duisburg        | 446 €    | 01.08.2025   |
+| Krefeld         | 540 €    | 01.01.2026   |
+| Mettmann        | 518 €    | 01.04.2024   |
 
 \* Neuss ist aus der offiziellen Kreis-Vorlage abgeleitet (Nettokalt 460 € +
 kalte NK 130 €). Sicherheitshalber mit dem
@@ -104,6 +106,8 @@ unpassenden Anzeigen schon vorab aus.
 - Neuss: [Rhein-Kreis Neuss – Neue Mietobergrenzen ab 01.05.2025](https://session.rhein-kreis-neuss.de/bi/vo0050.asp?__kvonr=14697)
 - Willich: [Kreis Viersen – KdU-Richtlinien erhöht zum 01.01.2024](https://alzviersen.de/nachrichten/a-blog/Die-Richtlinien-der-Kosten-der-Unterkunft-KdU-wurden-fuer-den-Kreis-Viersen-zum-01.01.2024-erhoeht/)
 - Duisburg: [Stadt Duisburg – Richtlinien zu den Kosten der Unterkunft (Stand 01.08.2025)](https://www.duisburg.de/vv/produkte/pro_du/dez_iii/50/Duisburger_Richtlinien_zu_den_Kosten_der_Unterkunft)
+- Krefeld: [Jobcenter Krefeld – Handzettel angemessene KdU ab 01.01.2026](https://www.jobcenter-krefeld.de/files/jobcenter-krefeld/geldleistungen/260101%20Handzettel%20angemessene%20KDU%20ab%2001.01.2026%20(JC%20KR).pdf)
+- Mettmann: [Kreis Mettmann – Angemessenheitsrichtwerte (PDF, Stand 01.04.2024)](https://harald-thome.de/files/pdf/KdU%20New/KdU%20Mettmann%20-%2001.04.2024.pdf)
 
 > Die Werte sind Richtwerte und können sich ändern; im Einzelfall entscheidet
 > das zuständige Jobcenter. Bitte vor einer Anmietung beim Jobcenter bestätigen
