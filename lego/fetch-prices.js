@@ -160,20 +160,71 @@ async function fetchSet(number) {
   };
 }
 
+// ---------- Automatische Deal-Entdeckung ----------
+// Liest die brickmerge-Seite "LEGO-Top-Angebote" (die aktuell besten
+// Preisnachlässe über alle Sets) und liefert Kandidaten, die nicht
+// schon auf der Merkliste stehen. So findet der Finder laufend neue
+// gute Sets, ohne dass die Merkliste gepflegt werden muss.
+
+const MAX_AUTO_DEALS = 40; // Obergrenze, damit der Lauf kurz bleibt
+const MIN_DEAL_SCORE = 50; // brickmerges eigener Deal-Score (0–100)
+const MIN_DISCOUNT = 25; // ... oder mindestens so viel % unter UVP
+
+async function discoverDeals(knownNumbers) {
+  const { html } = await fetchPage("https://www.brickmerge.de/LEGO-Top-Angebote");
+  const chunks = html.split(/<div id="set(\d+)-1" class="slide"/);
+  const deals = [];
+  for (let i = 1; i < chunks.length - 1; i += 2) {
+    const number = chunks[i];
+    const body = chunks[i + 1];
+    const off = Number((body.match(/class="off">(\d+)%/) || [])[1] || 0);
+    const dealScore = Number((body.match(/--score:(\d+)/) || [])[1] || 0);
+    if (knownNumbers.has(number)) continue;
+    if (dealScore < MIN_DEAL_SCORE && off < MIN_DISCOUNT) continue;
+    deals.push({ number, dealScore, off });
+  }
+  // Beste zuerst (Deal-Score, dann Rabatt), dann deckeln
+  deals.sort((a, b) => b.dealScore - a.dealScore || b.off - a.off);
+  return deals.slice(0, MAX_AUTO_DEALS);
+}
+
 // ---------- Hauptprogramm ----------
 
 async function main() {
-  const watchlist = loadWatchlist();
+  const watchlist = loadWatchlist().map((e) => ({ ...e, number: String(e.number) }));
   const previous = loadPrevious();
   const out = {};
   let ok = 0;
   let failed = 0;
 
-  for (const entry of watchlist) {
+  // Aktuelle Top-Angebote automatisch dazunehmen
+  const known = new Set(watchlist.map((e) => e.number));
+  let queue = watchlist;
+  try {
+    const deals = await discoverDeals(known);
+    console.log(`Top-Angebote entdeckt: ${deals.length} neue Kandidaten`);
+    queue = watchlist.concat(
+      deals.map((d) => ({ number: d.number, auto: true, dealScore: d.dealScore }))
+    );
+    await sleep(DELAY_MS);
+  } catch (err) {
+    console.warn("Deal-Entdeckung fehlgeschlagen, nur Merkliste:", err.message);
+    // Zuletzt bekannte Auto-Deals behalten, damit die Seite nicht leert
+    for (const [nr, prev] of Object.entries(previous)) {
+      if (prev.auto && !known.has(nr)) queue = queue.concat([{ number: nr, auto: true, keepOnly: true }]);
+    }
+  }
+
+  for (const entry of queue) {
     const nr = String(entry.number);
-    process.stdout.write(`  ${nr} ... `);
+    process.stdout.write(`  ${nr}${entry.auto ? " (auto)" : ""} ... `);
     try {
+      if (entry.keepOnly) throw new Error("nur alter Stand");
       out[nr] = await fetchSet(nr);
+      if (entry.auto) {
+        out[nr].auto = true;
+        out[nr].dealScore = entry.dealScore ?? null;
+      }
       console.log(`OK  ${out[nr].name} – ab ${out[nr].bestPrice} €`);
       ok++;
     } catch (err) {

@@ -92,6 +92,7 @@
     theme: "",
     maxPrice: "",
     onlyAvailable: false,
+    onlyList: false,
     sort: "score",
     weightsOpen: false,
   };
@@ -115,14 +116,21 @@
 
   const sets = [];
   const problems = [];
+  const onList = new Set();
   for (const entry of watchlist) {
     const nr = String(entry.number);
+    onList.add(nr);
     const live = priceData[nr];
     if (!live || live.error) {
       problems.push({ number: nr, error: (live && live.error) || "noch keine Daten geholt" });
       continue;
     }
-    sets.push({ ...live, ...entry, number: nr });
+    sets.push({ ...live, ...entry, number: nr, auto: false });
+  }
+  // Vom Fetcher automatisch entdeckte Top-Angebote ergänzen
+  for (const [nr, live] of Object.entries(priceData)) {
+    if (onList.has(nr) || !live || live.error || !live.auto) continue;
+    sets.push({ ...live, number: nr });
   }
 
   function evaluate(s) {
@@ -216,6 +224,7 @@
       </select>
       <input type="number" id="f-maxprice" min="0" step="10" placeholder="max. Preis €" value="${esc(state.maxPrice)}" />
       <label class="check"><input type="checkbox" id="f-avail" ${state.onlyAvailable ? "checked" : ""}/> nur lieferbare</label>
+      <label class="check" title="Automatisch entdeckte Top-Angebote ausblenden"><input type="checkbox" id="f-list" ${state.onlyList ? "checked" : ""}/> nur Merkliste</label>
       <select id="f-sort">
         ${Object.entries(SORTS)
           .map(([k, v]) => `<option value="${k}" ${k === state.sort ? "selected" : ""}>${esc(v.label)}</option>`)
@@ -232,6 +241,7 @@
     bind("f-theme", "theme", "change");
     bind("f-maxprice", "maxPrice");
     bind("f-avail", "onlyAvailable", "change");
+    bind("f-list", "onlyList", "change");
     bind("f-sort", "sort", "change");
   }
 
@@ -263,6 +273,7 @@
       <div class="card__body">
         <div class="card__tags">
           ${s.theme ? `<span class="tag">${esc(s.theme)}</span>` : ""}
+          ${s.auto ? `<span class="tag tag--deal" title="Automatisch aus den aktuellen Top-Angeboten entdeckt${s.dealScore ? ` (Deal-Score ${s.dealScore}/100)` : ""}">🔥 Top-Deal</span>` : ""}
           ${s.eol ? `<span class="tag tag--warn" title="Set läuft aus – wird bald nicht mehr produziert">EOL ${esc(s.eol)}</span>` : ""}
           ${!s.available ? `<span class="tag tag--bad">nicht lieferbar</span>` : ""}
           ${s.stale ? `<span class="tag tag--bad" title="Letzter Abruf fehlgeschlagen – Preis evtl. veraltet">Preis veraltet</span>` : ""}
@@ -297,6 +308,7 @@
       if (state.theme && s.theme !== state.theme) return false;
       if (s.bestPrice != null && s.bestPrice > maxP) return false;
       if (state.onlyAvailable && !s.available) return false;
+      if (state.onlyList && s.auto) return false;
       return true;
     });
     list.sort((SORTS[state.sort] || SORTS.score).fn);

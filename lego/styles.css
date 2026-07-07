@@ -192,6 +192,7 @@ code {
   padding: 0.05rem 0.55rem;
 }
 .tag--warn { color: var(--mid); border-color: var(--mid); }
+.tag--deal { color: var(--accent); border-color: var(--accent); }
 .tag--bad { color: var(--low); border-color: var(--low); }
 
 .card__title { margin: 0; font-size: 0.98rem; line-height: 1.3; }

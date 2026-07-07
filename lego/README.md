@@ -1,8 +1,16 @@
 # LEGO Preis-Leistungs-Finder
 
-Findet aus deiner Merkliste die LEGO-Sets mit dem besten Preis-Leistungs-Verhältnis –
-mit **Live-Bestpreisen** aus dem deutschen Preisvergleich [brickmerge.de](https://www.brickmerge.de)
-(10–40 Shops pro Set). Wie der Rest des Repos: reines HTML/CSS/JS, kein Build, kein npm.
+Findet die LEGO-Sets mit dem besten Preis-Leistungs-Verhältnis – mit
+**Live-Bestpreisen** aus dem deutschen Preisvergleich [brickmerge.de](https://www.brickmerge.de)
+(10–40 Shops pro Set). Die Auswahl speist sich aus zwei Quellen:
+
+1. **Kuratierte Merkliste** (`data/sets.js`) – handverlesene Sets inkl.
+   Bewertung für Prints und Aussehen.
+2. **Automatische Top-Deals** – der Fetcher entdeckt bei jedem Lauf die
+   aktuell besten Preisnachlässe über alle Sets (Tag „🔥 Top-Deal“,
+   abschaltbar über den Filter „nur Merkliste“).
+
+Wie der Rest des Repos: reines HTML/CSS/JS, kein Build, kein npm.
 
 ## Öffnen
 
@@ -30,7 +38,9 @@ brickmerge-Preisübersicht mit dem günstigsten Shop.
 
 ## Sets hinzufügen / bewerten
 
-Merkliste = `lego/data/sets.js`. **Nur die Setnummer ist Pflicht** – Name, Teile,
+Die automatisch entdeckten Top-Deals brauchen keine Pflege. Wer ein Set
+dauerhaft beobachten oder bewerten will, trägt es in die Merkliste ein:
+`lego/data/sets.js`. **Nur die Setnummer ist Pflicht** – Name, Teile,
 Minifiguren, UVP, Bild, Thema und Preise kommen automatisch:
 
 ```js
