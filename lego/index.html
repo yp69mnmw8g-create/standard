@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>LEGO Preis-Leistungs-Finder</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🧱</text></svg>" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="app__header">
+      <div class="app__brand">
+        <span class="app__brand-icon">🧱</span>
+        <div>
+          <h1 class="app__title">LEGO Preis-Leistungs-Finder</h1>
+          <p class="app__subtitle">Bestpreise aus dem Preisvergleich, bewertet nach deinen Kriterien</p>
+        </div>
+      </div>
+      <div class="app__meta" id="meta"><!-- Datenstand, von JS gefüllt --></div>
+    </header>
+
+    <main class="app__main">
+      <section class="panel" id="weights-panel">
+        <button class="panel__toggle" id="weights-toggle" type="button">
+          ⚖️ Gewichtung der Kriterien <span id="weights-caret">▾</span>
+        </button>
+        <div class="panel__body" id="weights-body"><!-- Regler, von JS gefüllt --></div>
+      </section>
+
+      <section class="controls" id="controls"><!-- Filter, von JS gefüllt --></section>
+
+      <section id="results" class="grid"><!-- Karten, von JS gefüllt --></section>
+
+      <section id="problems" class="problems"><!-- Fehlgeschlagene Sets --></section>
+    </main>
+
+    <footer class="app__footer">
+      Merkliste bearbeiten in <code>lego/data/sets.js</code> ·
+      Preise via <a href="https://www.brickmerge.de" target="_blank" rel="noopener">brickmerge.de</a>
+      (Preisvergleich deutscher Shops) · Angaben ohne Gewähr
+    </footer>
+
+    <!-- Erst Daten (setzen globalThis.LEGO_*), dann die App -->
+    <script src="data/sets.js"></script>
+    <script src="data/prices.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
