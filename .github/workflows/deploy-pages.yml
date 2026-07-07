@@ -9,6 +9,10 @@ on:
       - claude/magical-cannon-y7pnkl
       - main
   workflow_dispatch:
+  schedule:
+    # Zweimal täglich neu deployen, damit die LEGO-Preise frisch bleiben
+    # (GitHubs Cron feuert oft verspätet – für Preise unkritisch).
+    - cron: "30 5,16 * * *"
 
 # Rechte, die der Deploy benötigt.
 permissions:
@@ -51,11 +55,17 @@ jobs:
           WEATHER_CITY: ${{ secrets.WEATHER_CITY }}
         run: node morning/generate.js
 
+      - name: LEGO-Preise aktualisieren
+        # Holt die aktuellen Bestpreise für die Merkliste (lego/data/sets.js).
+        # Schlägt der Abruf fehl, wird der eingecheckte Stand veröffentlicht.
+        continue-on-error: true
+        run: node lego/fetch-prices.js
+
       - name: Stage site files
         # Nur die eigentlichen Seiten-Dateien veröffentlichen (kein .git/.github).
         run: |
           mkdir -p _site
-          cp -r index.html styles.css app.js data .nojekyll morning _site/
+          cp -r index.html styles.css app.js data .nojekyll morning lego _site/
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

@@ -1,5 +1,9 @@
 # KCD2 Companion
 
+> **Auch in diesem Repo:** [LEGO Preis-Leistungs-Finder](lego/README.md) –
+> bewertet LEGO-Sets nach Preis pro Teil, Rabatt, Minifiguren, Prints & Aussehen
+> mit Live-Bestpreisen ([online öffnen](https://yp69mnmw8g-create.github.io/standard/lego/)).
+
 A local **website** companion for **Kingdom Come: Deliverance 2**.
 Plain HTML/CSS/JavaScript — **no Node, no npm, no build, no server required**.
 Just open `index.html` in a browser, or use the hosted version.
