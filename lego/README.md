@@ -27,14 +27,34 @@ Mittelwert. Die Gewichtung stellst du oben auf der Seite per Regler ein
 | Kriterium | Datenquelle | Skala |
 |---|---|---|
 | **Preis pro Teil** | live (Bestpreis ÷ Teile) | 10 Punkte bei ≤ 6 ct/Teil, 0 ab 16 ct |
+| **Lizenz-Check (HdS)** | Thema | Eigenmarke (Ninjago/Icons/Ideas …) = 9, Lizenz-Set (Star Wars/Marvel …) = 4 |
 | **Rabatt zur UVP** | live | 10 Punkte ab 40 % unter UVP |
 | **Minifiguren fürs Geld** | live (Figuren pro 100 €) | 10 Punkte ab 6 Figuren/100 € |
 | **Prints statt Sticker** | deine Bewertung in `data/sets.js` | 0–10, leer = neutral 5 |
-| **Aussehen** | deine Bewertung in `data/sets.js` | 0–10, leer = neutral 5 |
+| **Design & Bauspaß** | deine Bewertung in `data/sets.js` | 0–10, leer = neutral 5 |
 
 Dazu gibt es Filter (Thema, Maximalpreis, nur lieferbare, Suche) und
 verschiedene Sortierungen. Jede Karte verlinkt direkt auf die
 brickmerge-Preisübersicht mit dem günstigsten Shop.
+
+### Bewertung nach „Held der Steine"
+
+Oben im Panel gibt es zwei Voreinstellungen: **Standard** und
+**🦸 Held der Steine**. Der HdS-Modus bildet die *dokumentierte
+Bewertungs-Philosophie* von Thomas Panke ab – nicht seine Einzel-Urteile aus
+den Videos (die stecken nur im gesprochenen Wort und lassen sich nicht
+zuverlässig pro Set abrufen). Konkret gewichtet er:
+
+- **Preis pro Teil** am stärksten – sein Kern-Maßstab (~6 ct/Teil = guter Deal,
+  von ihm z. B. für die Ninjago-City-Märkte genannt).
+- **Lizenz-Check** – Eigenmarken-Themen sind fair bepreist, Lizenz-Sets
+  (Star Wars, Marvel, Harry Potter …) zahlen einen Aufschlag von oft 10+ ct/Teil.
+- **Prints statt Sticker** – sein Dauerthema.
+- **Design & Bauspaß**, und den Tages-Rabatt bewusst kaum (ihm geht es um den
+  absoluten Wert, nicht um „gerade im Angebot").
+
+Quelle/Philosophie: [held-der-steine.de](https://www.held-der-steine.de). Die
+Regler bleiben frei verstellbar – der HdS-Modus ist nur ein Startpunkt.
 
 ## Sets hinzufügen / bewerten
 
