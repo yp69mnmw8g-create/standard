@@ -12,6 +12,36 @@
 
   const STORAGE_KEY = "lego-pl-finder-v1";
 
+  // ---------- „Held der Steine"-Lizenz-Check ----------
+  // Thomas Panke (Held der Steine) bewertet Preis-Leistung stark über den
+  // Preis pro Teil und ist konsequent skeptisch gegenüber dem Aufschlag,
+  // den Lizenz-Themen kosten: Eigenmarken-Themen wie Ninjago/Icons/Ideas
+  // liegen oft bei ~6 ct/Teil, Lizenz-Sets (Star Wars, Marvel, Harry
+  // Potter …) meist bei 10 ct/Teil und mehr. Dieses Kriterium bildet
+  // seine Haltung ab: Eigenmarken hoch, Lizenz-Sets niedriger.
+  // Quelle/Philosophie: https://www.held-der-steine.de
+  const LICENSED = [
+    "star wars", "harry potter", "super heroes", "marvel", "dc ", "disney",
+    "one piece", "fortnite", "pokémon", "pokemon", "avatar", "herr der ringe",
+    "lord of the rings", "dune", "star trek", "stranger things", "super mario",
+    "indiana jones", "speed champions", "wednesday", "minecraft", "sonic",
+    "jurassic", "batman", "spider", "avengers", "friends", "the lego movie",
+    "transformers",
+  ];
+  const INHOUSE = [
+    "ninjago", "icons", "ideas", "technic", "art", "city", "botanicals",
+    "creator", "architecture", "monkie", "dreamzzz", "advanced models",
+    "classic", "seasonal",
+  ];
+
+  function licenseScore(theme) {
+    if (!theme) return 6;
+    const t = theme.toLowerCase();
+    if (LICENSED.some((k) => t.includes(k))) return 4; // Lizenz-Aufschlag
+    if (INHOUSE.some((k) => t.includes(k))) return 9; // fair bepreiste Eigenmarke
+    return 6; // z. B. Education, Unbekanntes
+  }
+
   // ---------- Kriterien & Score ----------
   // Jedes Kriterium liefert einen Teil-Score 0–10; der Gesamtscore
   // ist der gewichtete Mittelwert (Gewichte per Regler einstellbar).
@@ -19,7 +49,7 @@
     {
       id: "ppp",
       label: "Preis pro Teil",
-      hint: "10 Punkte bei ≤ 6 ct/Teil, 0 Punkte ab 16 ct/Teil",
+      hint: "Held der Steine: ~6 ct/Teil = guter Deal. 10 Punkte bei ≤ 6 ct, 0 ab 16 ct",
       defaultWeight: 30,
       score(s) {
         if (!s.bestPrice || !s.pieces) return null;
@@ -28,10 +58,19 @@
       },
     },
     {
+      id: "license",
+      label: "Lizenz-Check (HdS)",
+      hint: "Eigenmarke (Ninjago/Icons/Ideas …) fair bepreist = 9, Lizenz-Set (Star Wars/Marvel …) mit Aufschlag = 4",
+      defaultWeight: 10,
+      score(s) {
+        return licenseScore(s.theme);
+      },
+    },
+    {
       id: "discount",
       label: "Rabatt zur UVP",
       hint: "10 Punkte ab 40 % unter UVP",
-      defaultWeight: 25,
+      defaultWeight: 20,
       score(s) {
         if (!s.bestPrice || !s.uvp) return null;
         const d = 1 - s.bestPrice / s.uvp;
@@ -42,7 +81,7 @@
       id: "minifigs",
       label: "Minifiguren fürs Geld",
       hint: "10 Punkte ab 6 Figuren pro 100 €",
-      defaultWeight: 15,
+      defaultWeight: 10,
       score(s) {
         if (!s.bestPrice) return null;
         const per100 = ((s.minifigs || 0) / s.bestPrice) * 100;
@@ -52,7 +91,7 @@
     {
       id: "prints",
       label: "Prints statt Sticker",
-      hint: "Deine Bewertung in sets.js (leer = neutral 5)",
+      hint: "HdS-Dauerthema: Prints > Sticker. Deine Bewertung in sets.js (leer = neutral 5)",
       defaultWeight: 10,
       score(s) {
         return s.prints == null ? 5 : clamp(s.prints, 0, 10);
@@ -60,7 +99,7 @@
     },
     {
       id: "design",
-      label: "Aussehen",
+      label: "Design & Bauspaß",
       hint: "Deine Bewertung in sets.js (leer = neutral 5)",
       defaultWeight: 20,
       score(s) {
@@ -68,6 +107,21 @@
       },
     },
   ];
+
+  // Voreingestellte Gewichtungen. „Held der Steine" bildet seine
+  // dokumentierte Philosophie ab: Preis pro Teil zählt am meisten,
+  // Prints und der Lizenz-Aufschlag stark, der Tages-Rabatt kaum
+  // (ihm geht es um den absoluten Wert, nicht um „gerade im Angebot").
+  const PRESETS = {
+    standard: {
+      label: "Standard",
+      weights: Object.fromEntries(CRITERIA.map((c) => [c.id, c.defaultWeight])),
+    },
+    hds: {
+      label: "🦸 Held der Steine",
+      weights: { ppp: 40, license: 20, prints: 20, design: 15, discount: 5, minifigs: 0 },
+    },
+  };
 
   const SORTS = {
     score: { label: "Bester Score", fn: (a, b) => b.total - a.total },
@@ -177,9 +231,47 @@
       : "Noch keine Preisdaten – einmal `node lego/fetch-prices.js` ausführen.";
   }
 
+  // Ist die aktuelle Gewichtung genau eine der Voreinstellungen?
+  function activePreset() {
+    for (const [key, p] of Object.entries(PRESETS)) {
+      const same = CRITERIA.every((c) => (state.weights[c.id] || 0) === (p.weights[c.id] || 0));
+      if (same) return key;
+    }
+    return null;
+  }
+
+  function applyPreset(name) {
+    const p = PRESETS[name];
+    if (!p) return;
+    state.weights = Object.fromEntries(CRITERIA.map((c) => [c.id, p.weights[c.id] || 0]));
+    save();
+    renderWeights();
+    renderResults();
+  }
+
   function renderWeights() {
     const body = document.getElementById("weights-body");
+    const active = activePreset();
+    const presetRow = `
+      <div class="presets">
+        <span class="presets__label">Voreinstellung:</span>
+        ${Object.entries(PRESETS)
+          .map(
+            ([k, p]) =>
+              `<button class="btn preset ${active === k ? "preset--on" : ""}" data-preset="${k}" type="button">${esc(p.label)}</button>`
+          )
+          .join("")}
+      </div>
+      <p class="presets__note">
+        „Held der Steine" bildet die dokumentierte Bewertungs-Philosophie von Thomas Panke ab
+        (Preis pro Teil zählt am meisten, Lizenz-Aufschlag &amp; Sticker drücken den Wert) –
+        keine Einzel-Urteile aus seinen Videos.
+        <a href="https://www.held-der-steine.de" target="_blank" rel="noopener">held-der-steine.de</a>
+      </p>`;
+
     body.innerHTML =
+      presetRow +
+      `<div class="weights-grid">` +
       CRITERIA.map(
         (c) => `
         <label class="weight" title="${esc(c.hint)}">
@@ -190,21 +282,23 @@
           <span class="weight__hint">${esc(c.hint)}</span>
         </label>`
       ).join("") +
-      `<button class="btn btn--ghost" id="weights-reset" type="button">Zurücksetzen</button>`;
+      `</div>`;
 
+    body.querySelectorAll("button[data-preset]").forEach((btn) => {
+      btn.addEventListener("click", () => applyPreset(btn.dataset.preset));
+    });
     body.querySelectorAll("input[data-weight]").forEach((input) => {
       input.addEventListener("input", () => {
         state.weights[input.dataset.weight] = Number(input.value);
         document.getElementById("wv-" + input.dataset.weight).textContent = input.value;
         save();
+        // Voreinstellungs-Markierung aktualisieren, ohne die Regler neu zu bauen
+        const active = activePreset();
+        body.querySelectorAll("button[data-preset]").forEach((b) => {
+          b.classList.toggle("preset--on", b.dataset.preset === active);
+        });
         renderResults();
       });
-    });
-    document.getElementById("weights-reset").addEventListener("click", () => {
-      state.weights = { ...defaults.weights };
-      save();
-      renderWeights();
-      renderResults();
     });
 
     document.getElementById("weights-body").style.display = state.weightsOpen ? "" : "none";
